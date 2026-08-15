@@ -4,17 +4,19 @@ import liff from '@line/liff';
 
 let liffInitialized = false;
 
-export async function initLiff() {
+export async function initLiff(customLiffId?: string) {
   if (liffInitialized) return;
-  if (!process.env.NEXT_PUBLIC_LIFF_ID) {
-    console.error("NEXT_PUBLIC_LIFF_ID is not configured");
+  const targetLiffId = customLiffId || process.env.NEXT_PUBLIC_LIFF_ID;
+  if (!targetLiffId) {
+    console.error("LIFF ID is not configured");
     return;
   }
   try {
-    await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID });
+    await liff.init({ liffId: targetLiffId });
     liffInitialized = true;
   } catch (error) {
     console.error("Failed to initialize LIFF", error);
+    throw error;
   }
 }
 

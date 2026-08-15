@@ -30,11 +30,24 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     let active = true;
 
     async function startLiff() {
-      const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+      let liffId = process.env.NEXT_PUBLIC_LIFF_ID;
 
-      // 1. If LIFF ID is not provided or running on PC browser without LIFF, fallback to Test/Mock mode
+      // If env variable not present, fetch from backend config API
       if (!liffId || liffId.trim() === "") {
-        console.warn("NEXT_PUBLIC_LIFF_ID not set. Running in Browser Simulator Mode.");
+        try {
+          const res = await fetch("/api/liff/config");
+          const data = await res.json();
+          if (data.liffId) {
+            liffId = data.liffId;
+          }
+        } catch (e) {
+          console.warn("Could not fetch LIFF config from backend", e);
+        }
+      }
+
+      // If still no LIFF ID or running in standard desktop browser outside LINE, activate PC Simulator Mode
+      if (!liffId || liffId.trim() === "") {
+        console.warn("No LIFF ID found. Running in PC Simulator Mode.");
         if (active) {
           setIsMock(true);
           setProfile({
@@ -48,7 +61,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        await initLiff();
+        await initLiff(liffId);
 
         if (!liff.isLoggedIn()) {
           liff.login();
