@@ -11,7 +11,7 @@ export default function Home() {
             💧
           </div>
           <h1 className="text-5xl font-extrabold tracking-tight text-slate-800 font-display">
-            ไทบ้าน <span className="text-emerald-600">(ThaiBann)</span>
+            ไทยบ้านอาสา
           </h1>
           <p className="text-lg text-slate-500 max-w-lg mx-auto">
             ระบบจัดการและจัดเก็บค่าสาธารณูปโภค ค่าน้ำประปา ค่าเก็บขยะ และเงินสงเคราะห์ฌาปนกิจ ในชุมชนยุคใหม่
@@ -57,7 +57,7 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="text-xs text-slate-400 pt-12">
-          &copy; {new Date().getFullYear()} ThaiBann Systems. All rights reserved.
+          &copy; {new Date().getFullYear()} ไทยบ้านอาสา. All rights reserved.
         </footer>
       </main>
     </div>

@@ -15,8 +15,8 @@ const notoSansThai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "ThaiBann - ระบบจัดเก็บค่าสาธารณูปโภคชุมชน",
-  description: "ระบบจัดเก็บค่าน้ำ ค่าขยะ และฌาปนกิจ สำหรับชุมชน",
+  title: "ไทยบ้านอาสา - ระบบจัดเก็บค่าสาธารณูปโภคชุมชน",
+  description: "ไทยบ้านอาสา แพลตฟอร์มจัดการสาธารณูปโภคและบัญชีชุมชนยุคใหม่",
 };
 
 export default function RootLayout({
