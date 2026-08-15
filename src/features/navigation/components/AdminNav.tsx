@@ -42,6 +42,12 @@ const NAV_ITEMS: NavItem[] = [
     icon: "🏠",
     activeIcon: "🏠",
   },
+  {
+    href: "/admin/settings/community",
+    label: "ตั้งค่าชุมชน",
+    icon: "🏢",
+    activeIcon: "🏢",
+  },
 ];
 
 export function SidebarNav() {
