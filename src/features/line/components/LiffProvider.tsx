@@ -15,6 +15,7 @@ interface LiffContextType {
   profile: LineProfile | null;
   loading: boolean;
   error: string | null;
+  isMock: boolean;
 }
 
 const LiffContext = createContext<LiffContextType | undefined>(undefined);
@@ -23,11 +24,29 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<LineProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMock, setIsMock] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     async function startLiff() {
+      const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+
+      // 1. If LIFF ID is not provided or running on PC browser without LIFF, fallback to Test/Mock mode
+      if (!liffId || liffId.trim() === "") {
+        console.warn("NEXT_PUBLIC_LIFF_ID not set. Running in Browser Simulator Mode.");
+        if (active) {
+          setIsMock(true);
+          setProfile({
+            userId: "U_MOCK_RESIDENT_TESTER",
+            displayName: "ผู้ทดสอบระบบ (จำลอง LINE)",
+            pictureUrl: "",
+          });
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
         await initLiff();
 
@@ -43,7 +62,6 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
         if (!active) return;
 
         if (idToken) {
-          // Verify token server-side for security
           const res = await fetch("/api/auth/line", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -59,7 +77,6 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
               email: data.profile.email,
             });
           } else {
-            console.error("Token verification failed, falling back to client profile");
             setProfile({
               userId: lineProfile.userId,
               displayName: lineProfile.displayName,
@@ -74,9 +91,15 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
           });
         }
       } catch (err: any) {
-        console.error("LIFF initialization error", err);
+        console.error("LIFF initialization error, falling back to mock mode:", err);
         if (active) {
-          setError(err.message || "ไม่สามารถเชื่อมต่อ LINE LIFF ได้");
+          // Graceful fallback to simulator on PC
+          setIsMock(true);
+          setProfile({
+            userId: "U_MOCK_RESIDENT_TESTER",
+            displayName: "ผู้ทดสอบระบบ (จำลอง LINE)",
+            pictureUrl: "",
+          });
         }
       } finally {
         if (active) {
@@ -93,7 +116,12 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <LiffContext.Provider value={{ liff, profile, loading, error }}>
+    <LiffContext.Provider value={{ liff, profile, loading, error, isMock }}>
+      {isMock && (
+        <div className="bg-amber-500 text-white text-[11px] font-semibold py-1 px-3 text-center sticky top-0 z-50 shadow-xs flex items-center justify-center gap-1.5">
+          <span>⚡ โหมดจำลอง LINE บนเบราว์เซอร์ (PC Simulator Mode)</span>
+        </div>
+      )}
       {children}
     </LiffContext.Provider>
   );
