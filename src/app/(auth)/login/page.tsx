@@ -29,8 +29,7 @@ function LoginForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
 
-      router.push(nextRoute);
-      router.refresh();
+      window.location.href = nextRoute;
     } catch (err: any) {
       setError(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
     } finally {
