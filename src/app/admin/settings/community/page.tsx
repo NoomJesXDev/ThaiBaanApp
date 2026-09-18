@@ -3,6 +3,16 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+interface StaffMember {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  phone: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export default function CommunitySettingsPage() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -16,8 +26,18 @@ export default function CommunitySettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Staff Management State
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [staffSaving, setStaffSaving] = useState(false);
+  const [staffMessage, setStaffMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   useEffect(() => {
     fetchCommunityData();
+    fetchStaffData();
   }, []);
 
   const fetchCommunityData = async () => {
@@ -39,6 +59,18 @@ export default function CommunitySettingsPage() {
       setMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStaffData = async () => {
+    try {
+      const res = await fetch("/api/admin/staff");
+      const data = await res.json();
+      if (res.ok && data.staff) {
+        setStaffList(data.staff);
+      }
+    } catch (err) {
+      console.error("Fetch staff failed", err);
     }
   };
 
@@ -78,38 +110,86 @@ export default function CommunitySettingsPage() {
     }
   };
 
+  const startEditStaff = (staff: StaffMember) => {
+    setEditingStaffId(staff.id);
+    setEditName(staff.full_name);
+    setEditPhone(staff.phone || "");
+    setEditPassword("");
+    setStaffMessage(null);
+  };
+
+  const handleSaveStaff = async (staffId: string) => {
+    setStaffSaving(true);
+    setStaffMessage(null);
+
+    try {
+      const body: any = { staffId };
+      if (editName.trim()) body.fullName = editName.trim();
+      if (editPhone.trim()) body.phone = editPhone.trim();
+      if (editPassword.trim()) {
+        if (editPassword.trim().length < 6) {
+          throw new Error("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร");
+        }
+        body.newPassword = editPassword.trim();
+      }
+
+      const res = await fetch("/api/admin/staff", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "บันทึกข้อมูลกรรมการไม่สำเร็จ");
+
+      setStaffMessage({ type: "success", text: "อัปเดตข้อมูลและรหัสผ่านกรรมการเรียบร้อยแล้ว!" });
+      setEditingStaffId(null);
+      setEditPassword("");
+      fetchStaffData();
+    } catch (err: any) {
+      setStaffMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการบันทึก" });
+    } finally {
+      setStaffSaving(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-24">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-xs text-slate-400 font-medium">กำลังโหลดข้อมูลชุมชนและการตั้งค่า...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-400">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="text-sm font-medium">กำลังโหลดข้อมูลการตั้งค่าชุมชน...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-8 pb-16">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800 font-display">🏢 ตั้งค่าข้อมูลหมู่บ้าน & เชื่อมต่อ LINE</h1>
-        <p className="text-xs text-slate-500 mt-1">
-          จัดการชื่อหมู่บ้าน, ที่อยู่ และเชื่อมต่อกุญแจ API จาก LINE Developers เพื่อเปิดระบบ LIFF และการส่งแจ้งเตือนบิล
+        <h1 className="text-2xl font-black text-slate-800 font-display">
+          ตั้งค่าข้อมูลชุมชน & LINE OA
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">
+          กำหนดชื่อหมู่บ้าน ที่อยู่ และข้อมูลเชื่อมต่อ LINE Messaging API สำหรับแจ้งเตือนลูกบ้าน
         </p>
       </div>
 
-      {/* Notification Message */}
+      {/* Alert Messages */}
       {message && (
         <div
-          className={`p-4 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+          className={`p-4 rounded-xl text-sm font-medium border flex items-center justify-between ${
             message.type === "success"
-              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-              : "bg-red-50 text-red-700 border border-red-200"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : "bg-rose-50 text-rose-800 border-rose-200"
           }`}
         >
-          <span>{message.type === "success" ? "✓" : "⚠️"}</span>
           <span>{message.text}</span>
+          <button
+            onClick={() => setMessage(null)}
+            className="text-slate-400 hover:text-slate-600 text-base font-bold ml-4 cursor-pointer"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -239,10 +319,168 @@ export default function CommunitySettingsPage() {
             disabled={saving}
             className="w-full sm:w-auto px-8 py-3 bg-primary hover:bg-primary-light text-white text-sm font-bold rounded-xl transition-all shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {saving ? "กำลังบันทึกข้อมูล..." : "💾 บันทึกการเปลี่ยนแปลงทั้งหมด"}
+            {saving ? "กำลังบันทึกข้อมูล..." : "💾 บันทึกการเปลี่ยนแปลงชุมชน & LINE"}
           </button>
         </div>
       </form>
+
+      {/* Card 3: Staff Management & Password Reset */}
+      <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-800 font-display flex items-center gap-2">
+              <span>👥</span> บัญชีกรรมการ & การจัดการรหัสผ่าน
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              รายชื่อกรรมการในชุมชน สามารถแก้ไขข้อมูลหรือตั้งรหัสผ่านใหม่ได้ทันที
+            </p>
+          </div>
+          <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-600 rounded-full">
+            {staffList.length} บัญชี
+          </span>
+        </div>
+
+        {staffMessage && (
+          <div
+            className={`p-3.5 rounded-xl text-xs font-medium border flex items-center justify-between ${
+              staffMessage.type === "success"
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : "bg-rose-50 text-rose-800 border-rose-200"
+            }`}
+          >
+            <span>{staffMessage.text}</span>
+            <button
+              onClick={() => setStaffMessage(null)}
+              className="text-slate-400 hover:text-slate-600 font-bold ml-3 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Staff List */}
+        <div className="divide-y divide-slate-100">
+          {staffList.map((staff) => {
+            const isEditing = editingStaffId === staff.id;
+
+            return (
+              <div key={staff.id} className="py-4 first:pt-0 last:pb-0">
+                {!isEditing ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-800">
+                          {staff.full_name}
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                            staff.role === "admin" || staff.role === "community_admin"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
+                              : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {staff.role === "admin" || staff.role === "community_admin"
+                            ? "ผู้ดูแลหลัก"
+                            : "กรรมการ"}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 text-xs text-slate-500">
+                        <span>📧 {staff.email}</span>
+                        <span>📱 {staff.phone || "ยังไม่ระบุเบอร์"}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => startEditStaff(staff)}
+                        className="px-3.5 py-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary hover:text-white rounded-lg transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        🔑 เปลี่ยนรหัสผ่าน / แก้ไข
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Edit Form */
+                  <div className="bg-slate-50 p-4 rounded-xl space-y-4 border border-slate-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-700">
+                        แก้ไขข้อมูล: {staff.email}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingStaffId(null)}
+                        className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        ยกเลิก
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          ชื่อ-นามสกุล
+                        </label>
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          เบอร์โทรศัพท์
+                        </label>
+                        <input
+                          type="tel"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          placeholder="08xxxxxxxx"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        รหัสผ่านใหม่ (กรอกหากต้องการเปลี่ยน, อย่างน้อย 6 ตัวอักษร)
+                      </label>
+                      <input
+                        type="password"
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        placeholder="•••••••• (เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยนรหัสผ่าน)"
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingStaffId(null)}
+                        disabled={staffSaving}
+                        className="px-3 py-1.5 text-xs text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer"
+                      >
+                        ยกเลิก
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveStaff(staff.id)}
+                        disabled={staffSaving}
+                        className="px-4 py-1.5 text-xs font-bold text-white bg-primary hover:bg-primary-light rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {staffSaving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
