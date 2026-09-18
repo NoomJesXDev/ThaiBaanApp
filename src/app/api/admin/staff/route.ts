@@ -48,6 +48,72 @@ export async function GET(req: Request) {
   }
 }
 
+// POST /api/admin/staff - Add new staff member to current community
+export async function POST(req: Request) {
+  try {
+    const user = await getAuthUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { fullName, email, phone, password, role } = await req.json();
+
+    if (!fullName || !email || !password) {
+      return NextResponse.json(
+        { error: "กรุณากรอกชื่อ-นามสกุล, อีเมล และรหัสผ่าน" },
+        { status: 400 }
+      );
+    }
+
+    if (password.trim().length < 6) {
+      return NextResponse.json(
+        { error: "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร" },
+        { status: 400 }
+      );
+    }
+
+    // Check if email is already taken
+    const checkEmail = await query(
+      "SELECT id FROM staff WHERE email = $1",
+      [email.trim().toLowerCase()]
+    );
+
+    if (checkEmail.rowCount && checkEmail.rowCount > 0) {
+      return NextResponse.json(
+        { error: "อีเมลนี้มีอยู่ในระบบแล้ว กรุณาใช้อีเมลอื่น" },
+        { status: 400 }
+      );
+    }
+
+    const passwordHash = await hashPassword(password.trim());
+    const staffRole = role === "community_admin" || role === "admin" ? "community_admin" : "committee";
+
+    await query(
+      `INSERT INTO staff (email, password_hash, community_id, full_name, role, phone, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, true)`,
+      [
+        email.trim().toLowerCase(),
+        passwordHash,
+        user.communityId,
+        fullName.trim(),
+        staffRole,
+        phone ? phone.trim() : null,
+      ]
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: "เพิ่มกรรมการใหม่เข้าสู่ระบบเรียบร้อยแล้ว",
+    });
+  } catch (err: any) {
+    console.error("Create Staff Error", err);
+    return NextResponse.json(
+      { error: err.message || "เกิดข้อผิดพลาดในการเพิ่มกรรมการ" },
+      { status: 500 }
+    );
+  }
+}
+
 // PUT /api/admin/staff - Reset staff password or update info
 export async function PUT(req: Request) {
   try {

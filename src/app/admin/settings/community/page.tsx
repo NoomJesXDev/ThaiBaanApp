@@ -35,6 +35,15 @@ export default function CommunitySettingsPage() {
   const [staffSaving, setStaffSaving] = useState(false);
   const [staffMessage, setStaffMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // New Staff State
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [newFullName, setNewFullName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"committee" | "community_admin">("committee");
+  const [addStaffLoading, setAddStaffLoading] = useState(false);
+
   useEffect(() => {
     fetchCommunityData();
     fetchStaffData();
@@ -150,6 +159,51 @@ export default function CommunitySettingsPage() {
       setStaffMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการบันทึก" });
     } finally {
       setStaffSaving(false);
+    }
+  };
+
+  const handleCreateStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFullName.trim() || !newEmail.trim() || !newPassword.trim()) {
+      setStaffMessage({ type: "error", text: "กรุณากรอกชื่อ-นามสกุล, อีเมล และรหัสผ่าน" });
+      return;
+    }
+    if (newPassword.trim().length < 6) {
+      setStaffMessage({ type: "error", text: "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร" });
+      return;
+    }
+
+    setAddStaffLoading(true);
+    setStaffMessage(null);
+
+    try {
+      const res = await fetch("/api/admin/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: newFullName.trim(),
+          email: newEmail.trim(),
+          phone: newPhone.trim() || null,
+          password: newPassword.trim(),
+          role: newRole,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "เพิ่มกรรมการไม่สำเร็จ");
+
+      setStaffMessage({ type: "success", text: "เพิ่มกรรมการใหม่เข้าสู่ระบบเรียบร้อยแล้ว!" });
+      setIsAddingStaff(false);
+      setNewFullName("");
+      setNewEmail("");
+      setNewPhone("");
+      setNewPassword("");
+      setNewRole("committee");
+      fetchStaffData();
+    } catch (err: any) {
+      setStaffMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการเพิ่มกรรมการ" });
+    } finally {
+      setAddStaffLoading(false);
     }
   };
 
@@ -326,18 +380,30 @@ export default function CommunitySettingsPage() {
 
       {/* Card 3: Staff Management & Password Reset */}
       <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
             <h2 className="text-base font-bold text-slate-800 font-display flex items-center gap-2">
               <span>👥</span> บัญชีกรรมการ & การจัดการรหัสผ่าน
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              รายชื่อกรรมการในชุมชน สามารถแก้ไขข้อมูลหรือตั้งรหัสผ่านใหม่ได้ทันที
+              รายชื่อกรรมการในชุมชน สามารถเพิ่มกรรมการใหม่ แก้ไขข้อมูล หรือตั้งรหัสผ่านใหม่ได้
             </p>
           </div>
-          <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-600 rounded-full">
-            {staffList.length} บัญชี
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-600 rounded-full">
+              {staffList.length} บัญชี
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAddingStaff(!isAddingStaff);
+                setStaffMessage(null);
+              }}
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+            >
+              {isAddingStaff ? "✕ ปิดฟอร์ม" : "+ เพิ่มกรรมการใหม่"}
+            </button>
+          </div>
         </div>
 
         {staffMessage && (
@@ -356,6 +422,115 @@ export default function CommunitySettingsPage() {
               ✕
             </button>
           </div>
+        )}
+
+        {/* Add New Staff Form */}
+        {isAddingStaff && (
+          <form onSubmit={handleCreateStaff} className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-emerald-200/60 pb-2.5">
+              <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                <span>➕</span> กรอกข้อมูลกรรมการท่านใหม่
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsAddingStaff(false)}
+                className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  ชื่อ-นามสกุล <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newFullName}
+                  onChange={(e) => setNewFullName(e.target.value)}
+                  placeholder="เช่น นายสมใจ มีชัย"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  อีเมล (สำหรับใช้ล็อกอิน) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="example@email.com"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  เบอร์โทรศัพท์ (สำหรับกู้รหัสผ่าน)
+                </label>
+                <input
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="08xxxxxxxx"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  รหัสผ่านเริ่มต้น <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="•••••••• (อย่างน้อย 6 ตัวอักษร)"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  บทบาทหน้าที่
+                </label>
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="committee">กรรมการทั่วไป</option>
+                  <option value="community_admin">ผู้ดูแลหลัก (Admin)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsAddingStaff(false)}
+                className="px-3.5 py-1.5 text-xs text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="submit"
+                disabled={addStaffLoading}
+                className="px-5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+              >
+                {addStaffLoading ? "กำลังบันทึก..." : "💾 บันทึกและสร้างบัญชี"}
+              </button>
+            </div>
+          </form>
         )}
 
         {/* Staff List */}
