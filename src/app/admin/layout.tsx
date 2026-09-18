@@ -39,25 +39,30 @@ export default async function AdminLayout({
       {/* Sidebar for Desktop */}
       <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-primary border-r border-primary-light text-white">
         <div className="flex flex-col flex-1 min-h-0">
-          <div className="flex items-center h-16 flex-shrink-0 px-4 bg-primary-light/10 border-b border-primary-light">
-            <span className="text-xl font-bold font-display tracking-wider text-white">
+          <div className="flex items-center justify-center h-16 flex-shrink-0 px-4 bg-primary-light/10 border-b border-primary-light text-center">
+            <span className="text-xl font-bold font-display tracking-wider text-white truncate text-center w-full">
               {communityName}
             </span>
           </div>
           <div className="flex-1 flex flex-col overflow-y-auto">
             <SidebarNav />
           </div>
-          <div className="flex-shrink-0 flex border-t border-primary-light p-4 bg-primary-light/10 justify-between items-center">
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs text-primary-light">ผู้เข้าใช้งาน</span>
-              <span className="text-sm font-medium truncate">{staff.full_name}</span>
+          <div className="flex-shrink-0 flex flex-col border-t border-primary-light p-4 bg-primary-light/10 text-center gap-3">
+            <div className="flex flex-col items-center justify-center min-w-0">
+              <span className="text-xs text-white/70">ผู้เข้าใช้งาน</span>
+              <span className="text-sm font-bold truncate text-white mt-0.5 max-w-full">
+                {staff.full_name}
+              </span>
+              <span className="text-[11px] text-white/60 font-medium mt-0.5">
+                ({staff.role === 'admin' || staff.role === 'community_admin' ? 'ผู้ดูแลหลัก' : 'กรรมการ'})
+              </span>
             </div>
-            <form action="/api/auth/signout" method="POST">
+            <form action="/api/auth/signout" method="POST" className="w-full">
               <button
                 type="submit"
-                className="text-xs bg-red-600 hover:bg-red-700 text-white py-1 px-2 rounded-lg cursor-pointer"
+                className="w-full py-2 px-3 text-xs font-bold bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white rounded-xl cursor-pointer transition-all shadow-xs flex items-center justify-center gap-1.5"
               >
-                ออกระบบ
+                <span>🚪</span> ออกจากระบบ
               </button>
             </form>
           </div>
