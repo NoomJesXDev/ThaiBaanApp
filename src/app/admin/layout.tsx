@@ -32,7 +32,7 @@ export default async function AdminLayout({
     redirect("/register");
   }
 
-  const communityName = staff.community_name || "ไทยบ้านอาสา";
+  const communityName = staff.community_name || "CommuneX";
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -96,7 +96,7 @@ export default async function AdminLayout({
 
         {/* Desktop Header */}
         <header className="hidden md:flex items-center justify-between h-16 bg-white border-b border-slate-200 px-8">
-          <h2 className="text-xl font-bold text-slate-800 font-display">ไทยบ้านอาสา — ระบบจัดการสาธารณูปโภคชุมชน</h2>
+          <h2 className="text-xl font-bold text-slate-800 font-display">CommuneX — ระบบบริหารจัดการสาธารณูปโภคชุมชน</h2>
           <span className="text-slate-500 text-sm">บทบาท: {staff.role === 'admin' ? 'ผู้ดูแลระบบ' : 'กรรมการ'}</span>
         </header>
 

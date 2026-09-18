@@ -15,8 +15,8 @@ const notoSansThai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "ไทยบ้านอาสา - ระบบจัดเก็บค่าสาธารณูปโภคชุมชน",
-  description: "ไทยบ้านอาสา แพลตฟอร์มจัดการสาธารณูปโภคและบัญชีชุมชนยุคใหม่",
+  title: "CommuneX - ระบบบริหารจัดการสาธารณูปโภคชุมชนอัจฉริยะ",
+  description: "CommuneX แพลตฟอร์มบริหารจัดการสาธารณูปโภคและบัญชีชุมชนยุคใหม่",
 };
 
 export default function RootLayout({

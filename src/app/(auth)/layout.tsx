@@ -9,10 +9,10 @@ export default function AuthLayout({
     <div className="min-h-screen flex flex-col justify-center bg-slate-50 py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <h1 className="text-4xl font-extrabold tracking-tight text-primary font-display mb-2">
-          ไทยบ้านอาสา
+          CommuneX
         </h1>
         <p className="text-sm text-slate-500 font-sans">
-          ระบบจัดเก็บค่าสาธารณูปโภคและบัญชีชุมชนยุคใหม่
+          ระบบบริหารจัดการสาธารณูปโภคและบัญชีชุมชนอัจฉริยะ
         </p>
       </div>
 

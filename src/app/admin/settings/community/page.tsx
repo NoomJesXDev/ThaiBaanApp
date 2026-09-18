@@ -359,7 +359,7 @@ export default function CommunitySettingsPage() {
                 type="text"
                 value={lineChannelId}
                 onChange={(e) => setLineChannelId(e.target.value)}
-                placeholder="เช่น @thaibann_dong"
+                placeholder="เช่น @communex_dong"
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
               />
             </div>

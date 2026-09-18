@@ -79,7 +79,7 @@ export default function RegisterPage() {
               onChange={(e) => setFullName(e.target.value)}
               disabled={loading}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-slate-50 disabled:text-slate-500"
-              placeholder="นายไทบ้าน มีบุญ"
+              placeholder="นายสมใจ มีบุญ"
             />
           </div>
 
