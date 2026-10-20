@@ -7,7 +7,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const communityId = searchParams.get("communityId");
 
-    let liffId = process.env.NEXT_PUBLIC_LIFF_ID || null;
+    let liffId = process.env.NEXT_PUBLIC_LIFF_ID || "2012120719-gOy9l7cH";
 
     if (communityId) {
       const result = await query(

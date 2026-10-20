@@ -18,6 +18,9 @@ export async function POST(req: Request) {
         clientId = dbRes.rows[0].line_channel_id;
       }
     }
+    if (!clientId) {
+      clientId = "2012120719";
+    }
 
     if (!clientId) {
       return NextResponse.json(
