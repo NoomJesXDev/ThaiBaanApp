@@ -6,6 +6,10 @@ import { useLiffContext } from "@/features/line/components/LiffProvider";
 
 interface Community {
   name: string;
+  bank_name?: string | null;
+  bank_account_number?: string | null;
+  bank_account_name?: string | null;
+  promptpay_id?: string | null;
 }
 
 interface House {
@@ -213,12 +217,69 @@ function LiffPayContent() {
               </span>
             </div>
 
-            {/* Promptpay detail mockup */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2 text-center">
+            {/* Bank account & PromptPay QR details */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 text-center">
               <span className="text-xs font-semibold text-slate-400">บัญชีรับเงินชุมชน</span>
-              <p className="font-bold text-slate-800 text-sm">ธนาคารกรุงไทย (ออมทรัพย์)</p>
-              <p className="text-lg font-mono font-bold text-slate-900 tracking-wider">123-4-56789-0</p>
-              <p className="text-xs text-slate-500">ชื่อบัญชี: คณะกรรมการน้ำประปาประจำชุมชน</p>
+
+              {bill.houses?.communities?.promptpay_id && (
+                <div className="flex flex-col items-center space-y-2 py-2 bg-white rounded-xl border border-slate-100 shadow-2xs">
+                  <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full">
+                    สแกน QR พร้อมเพย์ (ระบุยอดอัตโนมัติ)
+                  </span>
+                  <img
+                    src={`https://promptpay.io/${encodeURIComponent(
+                      bill.houses.communities.promptpay_id.replace(/[^0-9]/g, "")
+                    )}/${Number(bill.total_amount).toFixed(2)}.png`}
+                    alt="PromptPay QR Code"
+                    className="w-44 h-44 object-contain mx-auto rounded-lg"
+                  />
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    พร้อมเพย์: {bill.houses.communities.promptpay_id}
+                  </p>
+                </div>
+              )}
+
+              {(bill.houses?.communities?.bank_name ||
+                bill.houses?.communities?.bank_account_number ||
+                bill.houses?.communities?.bank_account_name) ? (
+                <div className="space-y-1">
+                  {bill.houses?.communities?.bank_name && (
+                    <p className="font-bold text-slate-800 text-sm">
+                      {bill.houses.communities.bank_name}
+                    </p>
+                  )}
+                  {bill.houses?.communities?.bank_account_number && (
+                    <div className="flex items-center justify-center gap-2">
+                      <p className="text-lg font-mono font-bold text-slate-900 tracking-wider">
+                        {bill.houses.communities.bank_account_number}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            bill.houses?.communities?.bank_account_number || ""
+                          );
+                          alert("คัดลอกเลขที่บัญชีแล้ว");
+                        }}
+                        className="text-[10px] font-bold bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md cursor-pointer"
+                      >
+                        คัดลอก
+                      </button>
+                    </div>
+                  )}
+                  {bill.houses?.communities?.bank_account_name && (
+                    <p className="text-xs text-slate-500">
+                      ชื่อบัญชี: {bill.houses.communities.bank_account_name}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                !bill.houses?.communities?.promptpay_id && (
+                  <p className="text-xs text-slate-500 py-2">
+                    กรุณาสอบถามเลขที่บัญชีรับโอนจากคณะกรรมการชุมชน ({bill.houses?.communities?.name})
+                  </p>
+                )
+              )}
             </div>
           </div>
 

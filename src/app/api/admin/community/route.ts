@@ -18,11 +18,19 @@ export async function GET(req: Request) {
 
     const communityId = user.communityId;
 
-    // Ensure line_liff_id column exists
-    await query("ALTER TABLE communities ADD COLUMN IF NOT EXISTS line_liff_id TEXT;");
+    // Ensure columns exist
+    await query(`
+      ALTER TABLE communities 
+      ADD COLUMN IF NOT EXISTS line_liff_id TEXT,
+      ADD COLUMN IF NOT EXISTS bank_name TEXT,
+      ADD COLUMN IF NOT EXISTS bank_account_number TEXT,
+      ADD COLUMN IF NOT EXISTS bank_account_name TEXT,
+      ADD COLUMN IF NOT EXISTS promptpay_id TEXT;
+    `);
 
     const result = await query(
-      `SELECT id, name, address, line_channel_id, line_channel_secret, line_channel_access_token, line_liff_id, created_at 
+      `SELECT id, name, address, line_channel_id, line_channel_secret, line_channel_access_token, line_liff_id,
+              bank_name, bank_account_number, bank_account_name, promptpay_id, created_at 
        FROM communities WHERE id = $1`,
       [communityId]
     );
@@ -45,14 +53,32 @@ export async function PUT(req: Request) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const communityId = user.communityId;
-    const { name, address, lineChannelId, lineLiffId, lineChannelSecret, lineChannelAccessToken } = await req.json();
+    const {
+      name,
+      address,
+      lineChannelId,
+      lineLiffId,
+      lineChannelSecret,
+      lineChannelAccessToken,
+      bankName,
+      bankAccountNumber,
+      bankAccountName,
+      promptpayId,
+    } = await req.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "กรุณาระบุชื่อหมู่บ้าน/ชุมชน" }, { status: 400 });
     }
 
-    // Ensure line_liff_id column exists
-    await query("ALTER TABLE communities ADD COLUMN IF NOT EXISTS line_liff_id TEXT;");
+    // Ensure columns exist
+    await query(`
+      ALTER TABLE communities 
+      ADD COLUMN IF NOT EXISTS line_liff_id TEXT,
+      ADD COLUMN IF NOT EXISTS bank_name TEXT,
+      ADD COLUMN IF NOT EXISTS bank_account_number TEXT,
+      ADD COLUMN IF NOT EXISTS bank_account_name TEXT,
+      ADD COLUMN IF NOT EXISTS promptpay_id TEXT;
+    `);
 
     await query(
       `UPDATE communities 
@@ -62,8 +88,12 @@ export async function PUT(req: Request) {
            line_liff_id = $4,
            line_channel_secret = $5,
            line_channel_access_token = $6,
+           bank_name = $7,
+           bank_account_number = $8,
+           bank_account_name = $9,
+           promptpay_id = $10,
            updated_at = NOW() 
-       WHERE id = $7`,
+       WHERE id = $11`,
       [
         name.trim(),
         address?.trim() || null,
@@ -71,6 +101,10 @@ export async function PUT(req: Request) {
         lineLiffId?.trim() || null,
         lineChannelSecret?.trim() || null,
         lineChannelAccessToken?.trim() || null,
+        bankName?.trim() || null,
+        bankAccountNumber?.trim() || null,
+        bankAccountName?.trim() || null,
+        promptpayId?.trim() || null,
         communityId
       ]
     );

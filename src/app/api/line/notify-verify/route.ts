@@ -13,12 +13,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Query the bill with period and house details
+    // 1. Query the bill with period, house, and community LINE credentials
     const billResult = await query(
-      `SELECT b.total_amount, bp.period_month, bp.period_year, h.house_number, h.id as house_id
+      `SELECT b.total_amount, bp.period_month, bp.period_year, 
+              h.house_number, h.id as house_id,
+              c.line_channel_access_token
        FROM bills b
        JOIN billing_periods bp ON b.billing_period_id = bp.id
        JOIN houses h ON b.house_id = h.id
+       JOIN communities c ON h.community_id = c.id
        WHERE b.id = $1`,
       [billId]
     );
@@ -65,7 +68,11 @@ export async function POST(req: Request) {
     // Send push message to all linked family members
     const notifyResults = await Promise.all(
       members.map(async (member: any) => {
-        return await sendTextPush(member.line_user_id, notifyText);
+        return await sendTextPush(
+          member.line_user_id,
+          notifyText,
+          bill.line_channel_access_token || undefined
+        );
       })
     );
 

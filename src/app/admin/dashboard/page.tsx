@@ -90,6 +90,73 @@ export default function DashboardPage() {
 
   const { stats, categoryBreakdown, monthlyTrends, defaulters } = data;
 
+  const handleExportCSV = () => {
+    const rows: string[][] = [];
+
+    // 1. Summary Section
+    rows.push(["รายงานสรุปการเงินชุมชน (CommuneX)"]);
+    rows.push(["วันที่ออกรายงาน", new Date().toLocaleString("th-TH")]);
+    rows.push([]);
+    rows.push(["หัวข้อสรุป", "จำนวน/ยอดเงิน"]);
+    rows.push(["รายรับจัดเก็บแล้ว (บาท)", stats.totalCollected.toFixed(2)]);
+    rows.push(["ยอดค้างชำระรวม (บาท)", stats.totalOutstanding.toFixed(2)]);
+    rows.push(["ยอดตั้งหนี้ทั้งหมด (บาท)", stats.totalBilled.toFixed(2)]);
+    rows.push(["จำนวนบิลที่ชำระแล้ว (บิล)", String(stats.paidCount)]);
+    rows.push(["จำนวนบิลค้างชำระ (บิล)", String(stats.unpaidCount)]);
+    rows.push(["อัตราจัดเก็บสำเร็จ (%)", `${stats.collectionRate}%`]);
+    rows.push([]);
+
+    // 2. Category Breakdown
+    rows.push(["รายรับแยกตามประเภทค่าบริการ (ที่ชำระแล้ว)"]);
+    rows.push(["ประเภทค่าบริการ", "ยอดจัดเก็บได้ (บาท)", "จำนวนรายการ"]);
+    categoryBreakdown.forEach((cat) => {
+      rows.push([cat.name, cat.totalAmount.toFixed(2), String(cat.itemCount)]);
+    });
+    rows.push([]);
+
+    // 3. Monthly Trends
+    rows.push(["สรุปรายรับรายเดือน ประจำปีนี้"]);
+    rows.push(["เดือน", "จัดเก็บได้ (บาท)", "ค้างชำระ (บาท)", "จำนวนบิลทั้งหมด"]);
+    monthlyTrends.forEach((trend) => {
+      rows.push([
+        MONTHS[trend.month - 1],
+        trend.paidAmount.toFixed(2),
+        trend.unpaidAmount.toFixed(2),
+        String(trend.billsCount),
+      ]);
+    });
+    rows.push([]);
+
+    // 4. Defaulters Table
+    rows.push(["รายงานลูกบ้านที่มียอดค้างชำระสะสม"]);
+    rows.push(["บ้านเลขที่", "ชื่อเจ้าของบ้าน", "เลขมิเตอร์น้ำ", "จำนวนรอบที่ค้าง", "ยอดค้างชำระสะสม (บาท)"]);
+    defaulters.forEach((def) => {
+      rows.push([
+        def.houseNumber,
+        def.ownerName,
+        def.meterId || "-",
+        String(def.unpaidMonths),
+        def.totalArrears.toFixed(2),
+      ]);
+    });
+
+    const csvContent =
+      "\uFEFF" +
+      rows
+        .map((r) =>
+          r.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")
+        )
+        .join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `CommuneX_Financial_Report_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       {/* Title Header */}
@@ -100,12 +167,20 @@ export default function DashboardPage() {
             ภาพรวมรายรับ รายจ่าย ค่าบริการสาธารณูปโภค และรายงานหนี้ค้างชำระสะสม
           </p>
         </div>
-        <button
-          onClick={fetchDashboardData}
-          className="self-start md:self-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
-        >
-          🔄 รีเฟรชข้อมูล
-        </button>
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            📥 ส่งออกรายงาน (Excel / CSV)
+          </button>
+          <button
+            onClick={fetchDashboardData}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            🔄 รีเฟรชข้อมูล
+          </button>
+        </div>
       </div>
 
       {/* Top 4 KPI Cards */}

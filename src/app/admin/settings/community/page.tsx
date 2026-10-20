@@ -17,6 +17,10 @@ export default function CommunitySettingsPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankAccountName, setBankAccountName] = useState("");
+  const [promptpayId, setPromptpayId] = useState("");
   const [lineChannelId, setLineChannelId] = useState("");
   const [lineLiffId, setLineLiffId] = useState("");
   const [lineChannelSecret, setLineChannelSecret] = useState("");
@@ -28,6 +32,7 @@ export default function CommunitySettingsPage() {
 
   // Staff Management State
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -59,6 +64,10 @@ export default function CommunitySettingsPage() {
       if (data.community) {
         setName(data.community.name || "");
         setAddress(data.community.address || "");
+        setBankName(data.community.bank_name || "");
+        setBankAccountNumber(data.community.bank_account_number || "");
+        setBankAccountName(data.community.bank_account_name || "");
+        setPromptpayId(data.community.promptpay_id || "");
         setLineChannelId(data.community.line_channel_id || "");
         setLineLiffId(data.community.line_liff_id || "");
         setLineChannelSecret(data.community.line_channel_secret || "");
@@ -77,6 +86,7 @@ export default function CommunitySettingsPage() {
       const data = await res.json();
       if (res.ok && data.staff) {
         setStaffList(data.staff);
+        if (data.currentUserId) setCurrentUserId(data.currentUserId);
       }
     } catch (err) {
       console.error("Fetch staff failed", err);
@@ -100,6 +110,10 @@ export default function CommunitySettingsPage() {
         body: JSON.stringify({
           name,
           address,
+          bankName,
+          bankAccountNumber,
+          bankAccountName,
+          promptpayId,
           lineChannelId,
           lineLiffId,
           lineChannelSecret,
@@ -207,6 +221,26 @@ export default function CommunitySettingsPage() {
     }
   };
 
+  const handleDeleteStaff = async (staff: StaffMember) => {
+    if (!confirm(`คุณต้องการลบบัญชีกรรมการ "${staff.full_name}" (${staff.email}) ใช่หรือไม่?`)) {
+      return;
+    }
+
+    setStaffMessage(null);
+    try {
+      const res = await fetch(`/api/admin/staff?id=${staff.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "ลบบัญชีกรรมการไม่สำเร็จ");
+
+      setStaffMessage({ type: "success", text: `ลบบัญชี ${staff.full_name} เรียบร้อยแล้ว` });
+      fetchStaffData();
+    } catch (err: any) {
+      setStaffMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการลบกรรมการ" });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-400">
@@ -284,6 +318,74 @@ export default function CommunitySettingsPage() {
               placeholder="เช่น หมู่ 4 ต.ดงคงสุข อ.เมือง จ.ขอนแก่น 40000"
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
             />
+          </div>
+        </div>
+
+        {/* Card 1.5: Bank Account & PromptPay */}
+        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 space-y-5">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <h2 className="text-base font-bold text-slate-800 font-display flex items-center gap-2">
+              <span>🏦</span> บัญชีธนาคารรับเงิน & พร้อมเพย์ชุมชน
+            </h2>
+            <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+              แสดงในหน้าชำระเงินของลูกบ้าน
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                ธนาคารและประเภทบัญชี
+              </label>
+              <input
+                type="text"
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder="เช่น ธนาคารกรุงไทย (ออมทรัพย์)"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                เลขที่บัญชีธนาคาร
+              </label>
+              <input
+                type="text"
+                value={bankAccountNumber}
+                onChange={(e) => setBankAccountNumber(e.target.value)}
+                placeholder="เช่น 123-4-56789-0"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                ชื่อบัญชีรับเงิน
+              </label>
+              <input
+                type="text"
+                value={bankAccountName}
+                onChange={(e) => setBankAccountName(e.target.value)}
+                placeholder="เช่น กองทุนน้ำประปาหมู่บ้านดงคงสุข"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                รหัสพร้อมเพย์ (เบอร์โทร 10 หลัก หรือ เลขผู้เสียภาษี 13 หลัก)
+              </label>
+              <input
+                type="text"
+                value={promptpayId}
+                onChange={(e) => setPromptpayId(e.target.value)}
+                placeholder="เช่น 0812345678 (ระบบจะสร้าง QR Code ยอดเงินให้อัตโนมัติ)"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
+              />
+            </div>
           </div>
         </div>
 
@@ -565,7 +667,7 @@ export default function CommunitySettingsPage() {
                       </div>
                     </div>
 
-                    <div>
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => startEditStaff(staff)}
@@ -573,6 +675,15 @@ export default function CommunitySettingsPage() {
                       >
                         🔑 เปลี่ยนรหัสผ่าน / แก้ไข
                       </button>
+                      {currentUserId && staff.id !== currentUserId && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStaff(staff)}
+                          className="px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg transition-all cursor-pointer"
+                        >
+                          🗑️ ลบ
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (

@@ -201,3 +201,46 @@ export async function PUT(req: Request) {
     );
   }
 }
+
+// DELETE /api/admin/staff?id=xxx - Delete a staff member
+export async function DELETE(req: Request) {
+  try {
+    const user = await getAuthUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const staffId = searchParams.get("id");
+
+    if (!staffId) {
+      return NextResponse.json(
+        { error: "กรุณาระบุรหัสกรรมการที่ต้องการลบ" },
+        { status: 400 }
+      );
+    }
+
+    if (staffId === user.userId) {
+      return NextResponse.json(
+        { error: "ไม่สามารถลบบัญชีของตัวเองที่กำลังใช้งานอยู่ได้" },
+        { status: 400 }
+      );
+    }
+
+    await query(
+      "DELETE FROM staff WHERE id = $1 AND community_id = $2",
+      [staffId, user.communityId]
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: "ลบบัญชีกรรมการเรียบร้อยแล้ว",
+    });
+  } catch (err: any) {
+    console.error("Delete Staff Error", err);
+    return NextResponse.json(
+      { error: err.message || "เกิดข้อผิดพลาดในการลบบัญชีกรรมการ" },
+      { status: 500 }
+    );
+  }
+}

@@ -99,9 +99,11 @@ export default function BillingManagement({
   const [billingSets, setBillingSets] = useState<BillingSet[]>([]);
   const [selectedSetId, setSelectedSetId] = useState<string>("");
   const [isSetConfigModalOpen, setIsSetConfigModalOpen] = useState(false);
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [tempSetName, setTempSetName] = useState("");
   const [tempSelectedRateIds, setTempSelectedRateIds] = useState<string[]>([]);
   const [savingSet, setSavingSet] = useState(false);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   // Fetch Billing Sets
   const fetchBillingSets = async () => {
@@ -261,6 +263,7 @@ export default function BillingManagement({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: editingSetId || undefined,
           name: tempSetName,
           items: selectedRates,
         }),
@@ -272,11 +275,38 @@ export default function BillingManagement({
       }
 
       await fetchBillingSets();
+      setEditingSetId(null);
+      setTempSetName("");
+      setTempSelectedRateIds([]);
       setIsSetConfigModalOpen(false);
     } catch (err: any) {
       alert("บันทึกชุดรายการไม่สำเร็จ: " + err.message);
     } finally {
       setSavingSet(false);
+    }
+  };
+
+  // Delete billing set
+  const handleDeleteBillingSet = async (id: string, name: string) => {
+    if (!confirm(`คุณต้องการลบชุดรายการ "${name}" ใช่หรือไม่?`)) return;
+
+    try {
+      const res = await fetch(`/api/billing/sets?id=${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "เกิดข้อผิดพลาดในการลบ");
+      }
+      if (selectedSetId === id) setSelectedSetId("");
+      if (editingSetId === id) {
+        setEditingSetId(null);
+        setTempSetName("");
+        setTempSelectedRateIds([]);
+      }
+      await fetchBillingSets();
+    } catch (err: any) {
+      alert("ลบชุดรายการไม่สำเร็จ: " + err.message);
     }
   };
 
@@ -515,6 +545,109 @@ export default function BillingManagement({
     }
   };
 
+  // Bulk save all unsaved bills
+  const handleSaveAllBills = async () => {
+    if (!billingPeriodId || periodClosed) return;
+    const unsavedBills = bills.filter((b) => !b.saved);
+    if (unsavedBills.length === 0) {
+      alert("บิลทุกบ้านถูกบันทึกเรียบร้อยแล้ว");
+      return;
+    }
+
+    if (!confirm(`ยืนยันการสร้างและบันทึกบิลพร้อมกันทั้ง ${unsavedBills.length} หลังคาเรือนใช่หรือไม่?`)) {
+      return;
+    }
+
+    setBulkProcessing(true);
+    let successCount = 0;
+    const updatedBills = [...bills];
+
+    for (let i = 0; i < updatedBills.length; i++) {
+      const bill = updatedBills[i];
+      if (bill.saved) continue;
+
+      try {
+        const itemsToInsert = Object.values(bill.items).map((item) => ({
+          utility_type: item.utility_type,
+          previous_reading: item.is_metered ? item.previous_reading : null,
+          current_reading: item.is_metered && item.current_reading ? parseFloat(item.current_reading) : null,
+          units_used: item.is_metered ? item.units_used : null,
+          amount: item.amount,
+        }));
+
+        const res = await fetch("/api/billing/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: bill.id,
+            billingPeriodId,
+            houseId: bill.house_id,
+            totalAmount: bill.total_amount,
+            arrearsAmount: bill.arrears_amount || 0,
+            status: bill.status,
+            items: itemsToInsert,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.billId) {
+          updatedBills[i] = { ...bill, id: data.billId, saved: true };
+          successCount++;
+        }
+      } catch (err) {
+        console.error("Bulk save error for house", bill.house_number, err);
+      }
+    }
+
+    setBills(updatedBills);
+    setBulkProcessing(false);
+    alert(`สร้างบิลสำเร็จ ${successCount} จาก ${unsavedBills.length} หลังคาเรือน!`);
+  };
+
+  // Bulk send LINE notification to all saved & unpaid bills
+  const handleNotifyAllLine = async () => {
+    const savedBills = bills.filter((b) => b.saved && b.id && b.status !== "paid");
+    if (savedBills.length === 0) {
+      alert("กรุณาสร้างบิลอย่างน้อย 1 หลังก่อนส่งแจ้งเตือน LINE ทั้งหมด");
+      return;
+    }
+
+    if (!confirm(`ต้องการส่งแจ้งเตือนบิลเข้า LINE ให้ลูกบ้านพร้อมกัน (${savedBills.length} หลังที่สร้างบิลแล้ว) ใช่หรือไม่?`)) {
+      return;
+    }
+
+    setBulkProcessing(true);
+    let sentCount = 0;
+    let skippedCount = 0;
+    const updatedBills = [...bills];
+
+    for (let i = 0; i < updatedBills.length; i++) {
+      const bill = updatedBills[i];
+      if (!bill.saved || !bill.id || bill.status === "paid") continue;
+
+      try {
+        const res = await fetch("/api/line/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ billId: bill.id }),
+        });
+
+        if (res.ok) {
+          updatedBills[i] = { ...bill, notified: true };
+          sentCount++;
+        } else {
+          skippedCount++;
+        }
+      } catch {
+        skippedCount++;
+      }
+    }
+
+    setBills(updatedBills);
+    setBulkProcessing(false);
+    alert(`ส่งแจ้งเตือน LINE สำเร็จ ${sentCount} หลังคาเรือน` + (skippedCount > 0 ? ` (ข้ามบ้านที่ยังไม่ผูก LINE ${skippedCount} หลัง)` : ""));
+  };
+
   // Statistics for period closing
   const totalBillsCount = bills.length;
   const savedBillsCount = bills.filter((b) => b.saved).length;
@@ -658,15 +791,36 @@ export default function BillingManagement({
               <div>⏳ ค้างชำระ: <span className="text-amber-600 font-bold font-mono">{unpaidBillsCount}</span> หลัง</div>
             </div>
 
-            {periodClosingEnabled && (
+            <div className="flex flex-wrap gap-2">
+              {!periodClosed && (
+                <button
+                  type="button"
+                  disabled={bulkProcessing}
+                  onClick={handleSaveAllBills}
+                  className="bg-primary hover:bg-primary-light disabled:opacity-50 text-white text-xs font-bold py-2.5 px-4 rounded-xl cursor-pointer transition-all shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  ✨ สร้างบิลทั้งหมด
+                </button>
+              )}
               <button
                 type="button"
-                onClick={handleClosePeriod}
-                className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 px-5 rounded-xl cursor-pointer transition-all shadow-xs flex items-center justify-center gap-1.5"
+                disabled={bulkProcessing || savedBillsCount === 0}
+                onClick={handleNotifyAllLine}
+                className="bg-[#06C755] hover:bg-[#05b34c] disabled:opacity-50 text-white text-xs font-bold py-2.5 px-4 rounded-xl cursor-pointer transition-all shadow-xs flex items-center justify-center gap-1.5"
               >
-                🔒 ปิดชุดรายการเก็บเงินรอบนี้
+                📲 ส่ง LINE ทั้งหมด
               </button>
-            )}
+              {periodClosingEnabled && (
+                <button
+                  type="button"
+                  disabled={bulkProcessing}
+                  onClick={handleClosePeriod}
+                  className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold py-2.5 px-4 rounded-xl cursor-pointer transition-all shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  🔒 ปิดชุดรายการเก็บเงินรอบนี้
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Bills Table for Desktop */}
@@ -896,11 +1050,71 @@ export default function BillingManagement({
               </button>
             </div>
 
-            <form onSubmit={handleSaveBillingSet} className="p-6 space-y-4">
+            <form onSubmit={handleSaveBillingSet} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Existing Billing Sets List */}
+              {billingSets.length > 0 && (
+                <div className="space-y-2 pb-3 border-b border-slate-100">
+                  <label className="block text-xs font-bold text-slate-700">
+                    ชุดรายการที่มีอยู่ ({billingSets.length} ชุด)
+                  </label>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {billingSets.map((set) => (
+                      <div
+                        key={set.id}
+                        className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/70 text-xs"
+                      >
+                        <div className="truncate pr-2">
+                          <span className="font-bold text-slate-800">{set.name}</span>
+                          <span className="text-[10px] text-slate-400 ml-1.5">
+                            ({set.items.length} รายการ)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSetId(set.id);
+                              setTempSetName(set.name);
+                              setTempSelectedRateIds(set.items.map((it) => it.id));
+                            }}
+                            className="text-[11px] font-bold text-primary hover:underline cursor-pointer px-1.5 py-0.5"
+                          >
+                            แก้ไข
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBillingSet(set.id, set.name)}
+                            className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer px-1.5 py-0.5"
+                          >
+                            ลบ
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  ชื่อชุดรายการเก็บเงิน <span className="text-red-500">*</span>
-                </label>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    {editingSetId ? "✏️ แก้ไขชื่อชุดรายการเก็บเงิน" : "➕ ชื่อชุดรายการเก็บเงินใหม่"}{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  {editingSetId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingSetId(null);
+                        setTempSetName("");
+                        setTempSelectedRateIds([]);
+                      }}
+                      className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
+                    >
+                      สลับไปสร้างชุดใหม่
+                    </button>
+                  )}
+                </div>
                 <input
                   type="text"
                   required

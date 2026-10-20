@@ -52,14 +52,116 @@ export async function sendBillFlexPush(
     monthStr: string;
     houseNumber: string;
     ownerName: string;
-    waterAmount: number;
-    garbageAmount: number;
-    funeralAmount: number;
+    communityName?: string;
+    waterAmount?: number;
+    garbageAmount?: number;
+    funeralAmount?: number;
+    arrearsAmount?: number;
+    items?: Array<{ name: string; amount: number }>;
     totalAmount: number;
     payUrl: string;
   },
   communityAccessToken?: string
 ) {
+  const itemRows: any[] = [];
+
+  if (billData.items && billData.items.length > 0) {
+    billData.items.forEach((item) => {
+      itemRows.push({
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          {
+            type: "text",
+            text: item.name,
+            size: "sm",
+            color: "#64748b",
+            flex: 3,
+          },
+          {
+            type: "text",
+            text: `${Number(item.amount).toFixed(2)} บาท`,
+            size: "sm",
+            color: "#1e293b",
+            align: "end",
+            flex: 2,
+          },
+        ],
+      });
+    });
+  } else {
+    itemRows.push(
+      {
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          { type: "text", text: "ค่าน้ำประปา", size: "sm", color: "#64748b" },
+          {
+            type: "text",
+            text: `${Number(billData.waterAmount || 0).toFixed(2)} บาท`,
+            size: "sm",
+            color: "#1e293b",
+            align: "end",
+          },
+        ],
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          { type: "text", text: "ค่าเก็บขยะ", size: "sm", color: "#64748b" },
+          {
+            type: "text",
+            text: `${Number(billData.garbageAmount || 0).toFixed(2)} บาท`,
+            size: "sm",
+            color: "#1e293b",
+            align: "end",
+          },
+        ],
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          { type: "text", text: "เงินฌาปนกิจ", size: "sm", color: "#64748b" },
+          {
+            type: "text",
+            text: `${Number(billData.funeralAmount || 0).toFixed(2)} บาท`,
+            size: "sm",
+            color: "#1e293b",
+            align: "end",
+          },
+        ],
+      }
+    );
+  }
+
+  if (billData.arrearsAmount && Number(billData.arrearsAmount) > 0) {
+    itemRows.push({
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "text",
+          text: "ยอดค้างชำระยกมา",
+          size: "sm",
+          color: "#d97706",
+          weight: "bold",
+          flex: 3,
+        },
+        {
+          type: "text",
+          text: `+${Number(billData.arrearsAmount).toFixed(2)} บาท`,
+          size: "sm",
+          color: "#d97706",
+          weight: "bold",
+          align: "end",
+          flex: 2,
+        },
+      ],
+    });
+  }
+
   // Flex Message JSON matching LINE specs
   const flexMessage = {
     type: "flex",
@@ -72,10 +174,12 @@ export async function sendBillFlexPush(
         contents: [
           {
             type: "text",
-            text: "แจ้งเตือนยอดค่าใช้จ่ายประจำเดือน",
+            text: billData.communityName
+              ? `แจ้งเตือนค่าบริการ (${billData.communityName})`
+              : "แจ้งเตือนยอดค่าใช้จ่ายประจำเดือน",
             weight: "bold",
-            size: "md",
-            color: "#ffffff"
+            size: "sm",
+            color: "#ffffff",
           },
           {
             type: "text",
@@ -83,10 +187,10 @@ export async function sendBillFlexPush(
             weight: "bold",
             size: "xl",
             color: "#ffffff",
-            margin: "sm"
-          }
+            margin: "sm",
+          },
         ],
-        backgroundColor: "#1e3a8a"
+        backgroundColor: "#1e3a8a",
       },
       body: {
         type: "box",
@@ -97,87 +201,29 @@ export async function sendBillFlexPush(
             text: `บ้านเลขที่ ${billData.houseNumber}`,
             weight: "bold",
             size: "lg",
-            color: "#1e293b"
+            color: "#1e293b",
           },
           {
             type: "text",
             text: `ชื่อผู้จ่าย: ${billData.ownerName}`,
             size: "sm",
             color: "#64748b",
-            margin: "xs"
+            margin: "xs",
           },
           {
             type: "separator",
-            margin: "md"
+            margin: "md",
           },
           {
             type: "box",
             layout: "vertical",
             margin: "md",
             spacing: "sm",
-            contents: [
-              {
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  {
-                    type: "text",
-                    text: "ค่าน้ำประปา",
-                    size: "sm",
-                    color: "#64748b"
-                  },
-                  {
-                    type: "text",
-                    text: `${billData.waterAmount.toFixed(2)} บาท`,
-                    size: "sm",
-                    color: "#1e293b",
-                    align: "end"
-                  }
-                ]
-              },
-              {
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  {
-                    type: "text",
-                    text: "ค่าเก็บขยะ",
-                    size: "sm",
-                    color: "#64748b"
-                  },
-                  {
-                    type: "text",
-                    text: `${billData.garbageAmount.toFixed(2)} บาท`,
-                    size: "sm",
-                    color: "#1e293b",
-                    align: "end"
-                  }
-                ]
-              },
-              {
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  {
-                    type: "text",
-                    text: "เงินฌาปนกิจ",
-                    size: "sm",
-                    color: "#64748b"
-                  },
-                  {
-                    type: "text",
-                    text: `${billData.funeralAmount.toFixed(2)} บาท`,
-                    size: "sm",
-                    color: "#1e293b",
-                    align: "end"
-                  }
-                ]
-              }
-            ]
+            contents: itemRows,
           },
           {
             type: "separator",
-            margin: "md"
+            margin: "md",
           },
           {
             type: "box",
@@ -189,7 +235,7 @@ export async function sendBillFlexPush(
                 text: "ยอดรวมทั้งหมด",
                 weight: "bold",
                 size: "md",
-                color: "#1e293b"
+                color: "#1e293b",
               },
               {
                 type: "text",
@@ -197,11 +243,11 @@ export async function sendBillFlexPush(
                 weight: "bold",
                 size: "lg",
                 color: "#059669",
-                align: "end"
-              }
-            ]
-          }
-        ]
+                align: "end",
+              },
+            ],
+          },
+        ],
       },
       footer: {
         type: "box",
@@ -215,12 +261,12 @@ export async function sendBillFlexPush(
             action: {
               type: "uri",
               label: "ตรวจสอบยอดและแนบสลิป",
-              uri: billData.payUrl
-            }
-          }
-        ]
-      }
-    }
+              uri: billData.payUrl,
+            },
+          },
+        ],
+      },
+    },
   };
 
   return sendPushMessage(lineUserId, [flexMessage], communityAccessToken);

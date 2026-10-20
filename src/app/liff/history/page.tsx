@@ -19,13 +19,17 @@ interface BillingPeriod {
 }
 
 interface BillItem {
-  utility_type: "water" | "garbage" | "funeral";
+  id?: string;
+  utility_type: string;
+  name?: string;
+  is_metered?: boolean;
   amount: number;
 }
 
 interface Bill {
   id: string;
   total_amount: number;
+  arrears_amount?: number;
   status: string;
   billing_periods: BillingPeriod;
   bill_items: BillItem[];
@@ -120,10 +124,6 @@ export default function LiffHistoryPage() {
       ) : (
         <div className="space-y-4">
           {paidBills.map((bill) => {
-            const waterItem = bill.bill_items?.find((i) => i.utility_type === "water");
-            const garbageItem = bill.bill_items?.find((i) => i.utility_type === "garbage");
-            const funeralItem = bill.bill_items?.find((i) => i.utility_type === "funeral");
-            
             const payment = bill.payments?.[0];
 
             const monthStr = `${MONTHS[bill.billing_periods.period_month - 1]} ${
@@ -142,23 +142,19 @@ export default function LiffHistoryPage() {
                   </span>
                 </div>
 
-                <div className="space-y-1 text-xs text-slate-600">
-                  {waterItem && (
-                    <div className="flex justify-between">
-                      <span>💧 ค่าน้ำประปา</span>
-                      <span className="font-mono">{Number(waterItem.amount).toFixed(2)} บาท</span>
+                <div className="space-y-1.5 text-xs text-slate-600">
+                  {bill.bill_items?.map((item, idx) => (
+                    <div key={item.id || idx} className="flex justify-between">
+                      <span>
+                        {item.is_metered ? "💧" : "📄"} {item.name || item.utility_type}
+                      </span>
+                      <span className="font-mono">{Number(item.amount).toFixed(2)} บาท</span>
                     </div>
-                  )}
-                  {garbageItem && (
-                    <div className="flex justify-between">
-                      <span>🗑️ ค่าเก็บขยะ</span>
-                      <span className="font-mono">{Number(garbageItem.amount).toFixed(2)} บาท</span>
-                    </div>
-                  )}
-                  {funeralItem && (
-                    <div className="flex justify-between">
-                      <span>🤝 เงินฌาปนกิจ</span>
-                      <span className="font-mono">{Number(funeralItem.amount).toFixed(2)} บาท</span>
+                  ))}
+                  {Number(bill.arrears_amount || 0) > 0 && (
+                    <div className="flex justify-between text-amber-700 font-medium">
+                      <span>⚠️ ยอดค้างชำระยกมา</span>
+                      <span className="font-mono">+{Number(bill.arrears_amount).toFixed(2)} บาท</span>
                     </div>
                   )}
                 </div>

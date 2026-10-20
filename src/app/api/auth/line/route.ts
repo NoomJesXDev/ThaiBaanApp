@@ -1,3 +1,4 @@
+import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
@@ -8,7 +9,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing ID token' }, { status: 400 });
     }
 
-    const clientId = process.env.LINE_CHANNEL_ID;
+    let clientId = process.env.LINE_CHANNEL_ID;
+    if (!clientId) {
+      const dbRes = await query(
+        "SELECT line_channel_id FROM communities WHERE line_channel_id IS NOT NULL LIMIT 1"
+      );
+      if (dbRes.rowCount && dbRes.rows[0].line_channel_id) {
+        clientId = dbRes.rows[0].line_channel_id;
+      }
+    }
+
     if (!clientId) {
       return NextResponse.json(
         { error: 'LINE Channel ID is not configured on the server' },

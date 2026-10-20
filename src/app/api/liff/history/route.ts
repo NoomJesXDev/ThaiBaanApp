@@ -25,9 +25,19 @@ export async function GET(req: Request) {
     if (bills.length > 0) {
       const billIds = bills.map((b) => b.id);
       
-      // 2. Fetch bill items
+      // 2. Fetch bill items with readable names
       const itemsResult = await query(
-        "SELECT id, bill_id, utility_type, amount FROM bill_items WHERE bill_id = ANY($1)",
+        `SELECT bi.id, bi.bill_id, bi.utility_type, bi.amount, bi.previous_reading, bi.current_reading, bi.units_used,
+                COALESCE(ur.name, CASE 
+                  WHEN bi.utility_type = 'water' THEN 'ค่าน้ำประปา'
+                  WHEN bi.utility_type = 'garbage' THEN 'ค่าเก็บขยะ'
+                  WHEN bi.utility_type = 'funeral' THEN 'เงินสงเคราะห์ฌาปนกิจ'
+                  ELSE bi.utility_type
+                END) as name,
+                COALESCE(ur.is_metered, bi.previous_reading IS NOT NULL) as is_metered
+         FROM bill_items bi
+         LEFT JOIN utility_rates ur ON bi.utility_type = ur.utility_type
+         WHERE bi.bill_id = ANY($1)`,
         [billIds]
       );
       const items = itemsResult.rows;
