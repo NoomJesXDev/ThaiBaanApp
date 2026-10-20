@@ -9,14 +9,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing ID token' }, { status: 400 });
     }
 
-    let clientId = process.env.LINE_CHANNEL_ID;
-    if (!clientId) {
-      const dbRes = await query(
-        "SELECT line_channel_id FROM communities WHERE line_channel_id IS NOT NULL LIMIT 1"
-      );
-      if (dbRes.rowCount && dbRes.rows[0].line_channel_id) {
-        clientId = dbRes.rows[0].line_channel_id;
-      }
+    let clientId: string | undefined;
+    const dbRes = await query(
+      "SELECT line_channel_id FROM communities WHERE line_channel_id IS NOT NULL LIMIT 1"
+    );
+    if (dbRes.rowCount && dbRes.rows[0].line_channel_id) {
+      clientId = dbRes.rows[0].line_channel_id;
     }
     if (!clientId) {
       clientId = "2012120719";

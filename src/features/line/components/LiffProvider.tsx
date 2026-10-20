@@ -30,19 +30,21 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     let active = true;
 
     async function startLiff() {
-      let liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+      let liffId: string | undefined;
 
-      // If env variable not present, fetch from backend config API
-      if (!liffId || liffId.trim() === "") {
-        try {
-          const res = await fetch("/api/liff/config");
-          const data = await res.json();
-          if (data.liffId) {
-            liffId = data.liffId;
-          }
-        } catch (e) {
-          console.warn("Could not fetch LIFF config from backend", e);
+      // Always prefer backend / database LIFF ID first so Admin Settings & new LIFF IDs override stale build env vars
+      try {
+        const res = await fetch("/api/liff/config");
+        const data = await res.json();
+        if (data.liffId) {
+          liffId = data.liffId;
         }
+      } catch (e) {
+        console.warn("Could not fetch LIFF config from backend", e);
+      }
+
+      if (!liffId || liffId.trim() === "") {
+        liffId = process.env.NEXT_PUBLIC_LIFF_ID || "2012120719-gOy9l7cH";
       }
 
       // If still no LIFF ID or running in standard desktop browser outside LINE, activate PC Simulator Mode

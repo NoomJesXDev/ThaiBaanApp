@@ -7,7 +7,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const communityId = searchParams.get("communityId");
 
-    let liffId = process.env.NEXT_PUBLIC_LIFF_ID || "2012120719-gOy9l7cH";
+    let liffId: string | null = null;
 
     if (communityId) {
       const result = await query(
@@ -25,6 +25,10 @@ export async function GET(req: Request) {
       if (result.rowCount && result.rows[0].line_liff_id) {
         liffId = result.rows[0].line_liff_id;
       }
+    }
+
+    if (!liffId) {
+      liffId = "2012120719-gOy9l7cH";
     }
 
     return NextResponse.json({ success: true, liffId });
