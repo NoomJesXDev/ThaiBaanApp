@@ -159,7 +159,7 @@ INSERT INTO staff (id, email, password_hash, community_id, full_name, role)
 VALUES (
     '4b1550b8-32b4-4667-af4a-86c518a6d85c',
     'noomjes.si@gmail.com',
-    '$2b$10$eCvlcILpiVwOGPg/FbZ6jOsrXcDoj6y9jQz/jFANmsEh2TCnOlulu',
+    '$2b$10$m4H6kfuCa34w6H0zO91JoOnqsd5Iw6E/FCUme5pMFo9o6XnX4WAyy',
     'd451d753-4303-4e30-81ef-88e2e5270e0a',
     'คุณเจษฎา (กรรมการหลัก)',
     'community_admin'

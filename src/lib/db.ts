@@ -1,6 +1,8 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg';
+import { executeDemoQuery } from './demo-db';
 
 let pool: Pool | null = null;
+let fallbackToDemoDb = false;
 
 export function getPool(): Pool {
   if (!pool) {
@@ -12,7 +14,7 @@ export function getPool(): Pool {
         ssl: isProduction ? { rejectUnauthorized: false } : undefined,
         max: 20,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
+        connectionTimeoutMillis: 2500,
       });
     } else {
       pool = new Pool({
@@ -24,7 +26,7 @@ export function getPool(): Pool {
         ssl: isProduction ? { rejectUnauthorized: false } : undefined,
         max: 20,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
+        connectionTimeoutMillis: 1200,
       });
     }
   }
@@ -35,6 +37,32 @@ export async function query<T extends QueryResultRow = any>(
   text: string,
   params?: any[]
 ): Promise<QueryResult<T>> {
-  const p = getPool();
-  return p.query<T>(text, params);
+  if (fallbackToDemoDb || process.env.USE_DEMO_DB === 'true') {
+    return executeDemoQuery<T>(text, params);
+  }
+
+  try {
+    const p = getPool();
+    return await p.query<T>(text, params);
+  } catch (err: any) {
+    const msg = String(err?.message || '');
+    const isConnOrTenantError =
+      err?.code === 'ECONNREFUSED' ||
+      err?.code === 'ENOTFOUND' ||
+      err?.code === 'ETIMEDOUT' ||
+      msg.includes('ECONNREFUSED') ||
+      msg.includes('ENOTFOUND') ||
+      msg.includes('tenant/user') ||
+      msg.includes('Tenant or user not found') ||
+      msg.includes('connect ETIMEDOUT') ||
+      msg.includes('timeout expired') ||
+      err?.errors?.some((e: any) => e?.code === 'ECONNREFUSED');
+
+    if (isConnOrTenantError) {
+      console.warn('⚠️ PostgreSQL unreachable or paused — switching automatically to Built-in Demo DB:', msg);
+      fallbackToDemoDb = true;
+      return executeDemoQuery<T>(text, params);
+    }
+    throw err;
+  }
 }
