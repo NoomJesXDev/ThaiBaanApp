@@ -43,6 +43,37 @@ export async function verifyJWT(token: string): Promise<SessionPayload | null> {
   }
 }
 
+export interface PasswordResetPayload extends jose.JWTPayload {
+  purpose: 'password-reset';
+  staffId: string;
+  email: string;
+  pwFingerprint: string;
+}
+
+export async function signPasswordResetToken(payload: {
+  staffId: string;
+  email: string;
+  pwFingerprint: string;
+}): Promise<string> {
+  return new jose.SignJWT({ ...payload, purpose: 'password-reset' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('15m')
+    .sign(JWT_SECRET);
+}
+
+export async function verifyPasswordResetToken(
+  token: string
+): Promise<PasswordResetPayload | null> {
+  try {
+    const { payload } = await jose.jwtVerify(token, JWT_SECRET);
+    if (payload.purpose !== 'password-reset') return null;
+    return payload as PasswordResetPayload;
+  } catch {
+    return null;
+  }
+}
+
 export async function getSessionUser(req: NextRequest): Promise<SessionPayload | null> {
   const token = req.cookies.get('session')?.value;
   if (!token) return null;
