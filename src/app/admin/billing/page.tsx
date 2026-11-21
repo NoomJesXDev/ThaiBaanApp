@@ -33,7 +33,7 @@ export default async function BillingPage() {
   );
   const latestBillingPeriod = latestPeriodResult.rows;
 
-  let previousReadings: Record<string, number> = {};
+  const previousReadings: Record<string, number> = {};
   if (latestBillingPeriod.length > 0) {
     const previousBillsResult = await query(
       `SELECT b.house_id, bi.current_reading 
@@ -43,8 +43,8 @@ export default async function BillingPage() {
       [latestBillingPeriod[0].id]
     );
     
-    previousBillsResult.rows.forEach((row: any) => {
-      previousReadings[row.house_id] = Number(row.current_reading);
+    previousBillsResult.rows.forEach((row: Record<string, unknown>) => {
+      previousReadings[String(row.house_id)] = Number(row.current_reading);
     });
   }
 

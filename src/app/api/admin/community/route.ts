@@ -40,9 +40,9 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ success: true, community: result.rows[0] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Fetch Community Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }
 
@@ -110,8 +110,8 @@ export async function PUT(req: Request) {
     );
 
     return NextResponse.json({ success: true, message: "บันทึกข้อมูลชุมชนและการตั้งค่า LINE เรียบร้อยแล้ว" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Update Community Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

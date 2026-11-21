@@ -11,7 +11,7 @@ interface LineProfile {
 }
 
 interface LiffContextType {
-  liff: any;
+  liff: typeof liff;
   profile: LineProfile | null;
   loading: boolean;
   error: string | null;
@@ -23,7 +23,7 @@ const LiffContext = createContext<LiffContextType | undefined>(undefined);
 export function LiffProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<LineProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const [isMock, setIsMock] = useState(false);
 
   useEffect(() => {
@@ -105,7 +105,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
             pictureUrl: lineProfile.pictureUrl,
           });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("LIFF initialization error, falling back to mock mode:", err);
         if (active) {
           // Graceful fallback to simulator on PC

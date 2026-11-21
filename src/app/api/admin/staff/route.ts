@@ -39,10 +39,10 @@ export async function GET(req: Request) {
       staff: result.rows,
       currentUserId: user.userId,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Fetch Staff Error", err);
     return NextResponse.json(
-      { error: err.message || "เกิดข้อผิดพลาดในการดึงข้อมูลกรรมการ" },
+      { error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการดึงข้อมูลกรรมการ" },
       { status: 500 }
     );
   }
@@ -105,10 +105,10 @@ export async function POST(req: Request) {
       success: true,
       message: "เพิ่มกรรมการใหม่เข้าสู่ระบบเรียบร้อยแล้ว",
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Create Staff Error", err);
     return NextResponse.json(
-      { error: err.message || "เกิดข้อผิดพลาดในการเพิ่มกรรมการ" },
+      { error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการเพิ่มกรรมการ" },
       { status: 500 }
     );
   }
@@ -146,7 +146,7 @@ export async function PUT(req: Request) {
 
     // Build update dynamic query
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (fullName && fullName.trim()) {
@@ -193,10 +193,10 @@ export async function PUT(req: Request) {
       success: true,
       message: "อัปเดตข้อมูลและรหัสผ่านกรรมการเรียบร้อยแล้ว",
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Update Staff Error", err);
     return NextResponse.json(
-      { error: err.message || "เกิดข้อผิดพลาดในการอัปเดตข้อมูลกรรมการ" },
+      { error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการอัปเดตข้อมูลกรรมการ" },
       { status: 500 }
     );
   }
@@ -236,10 +236,10 @@ export async function DELETE(req: Request) {
       success: true,
       message: "ลบบัญชีกรรมการเรียบร้อยแล้ว",
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Delete Staff Error", err);
     return NextResponse.json(
-      { error: err.message || "เกิดข้อผิดพลาดในการลบบัญชีกรรมการ" },
+      { error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการลบบัญชีกรรมการ" },
       { status: 500 }
     );
   }

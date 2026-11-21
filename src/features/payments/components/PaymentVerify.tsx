@@ -43,7 +43,6 @@ const MONTHS = [
 
 export default function PaymentVerify({
   initialPayments,
-  staffId,
 }: PaymentVerifyProps) {
   const [payments, setPayments] = useState<Payment[]>(initialPayments);
   const [activeSlip, setActiveSlip] = useState<string | null>(null);
@@ -96,8 +95,8 @@ export default function PaymentVerify({
 
       // Remove from list
       setPayments(payments.filter((p) => p.id !== payment.id));
-    } catch (err: any) {
-      alert("เกิดข้อผิดพลาด: " + (err.message || "ไม่สามารถทำรายการได้"));
+    } catch (err: unknown) {
+      alert("เกิดข้อผิดพลาด: " + ((err instanceof Error ? err.message : undefined) || "ไม่สามารถทำรายการได้"));
     } finally {
       setProcessingId(null);
     }

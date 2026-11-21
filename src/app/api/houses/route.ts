@@ -29,9 +29,9 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json({ success: true, data: result.rows[0] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Create House Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }
 
@@ -55,9 +55,9 @@ export async function PUT(req: Request) {
     );
 
     return NextResponse.json({ success: true, data: result.rows[0] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Update House Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }
 
@@ -78,8 +78,8 @@ export async function DELETE(req: Request) {
     await query("DELETE FROM houses WHERE id = $1", [id]);
 
     return NextResponse.json({ success: true, message: "ลบบ้านเลขที่สำเร็จ" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Delete House Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

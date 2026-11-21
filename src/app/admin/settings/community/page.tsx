@@ -49,37 +49,6 @@ export default function CommunitySettingsPage() {
   const [newRole, setNewRole] = useState<"committee" | "community_admin">("committee");
   const [addStaffLoading, setAddStaffLoading] = useState(false);
 
-  useEffect(() => {
-    fetchCommunityData();
-    fetchStaffData();
-  }, []);
-
-  const fetchCommunityData = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/community");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "โหลดข้อมูลไม่สำเร็จ");
-
-      if (data.community) {
-        setName(data.community.name || "");
-        setAddress(data.community.address || "");
-        setBankName(data.community.bank_name || "");
-        setBankAccountNumber(data.community.bank_account_number || "");
-        setBankAccountName(data.community.bank_account_name || "");
-        setPromptpayId(data.community.promptpay_id || "");
-        setLineChannelId(data.community.line_channel_id || "");
-        setLineLiffId(data.community.line_liff_id || "");
-        setLineChannelSecret(data.community.line_channel_secret || "");
-        setLineChannelAccessToken(data.community.line_channel_access_token || "");
-      }
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const fetchStaffData = async () => {
     try {
       const res = await fetch("/api/admin/staff");
@@ -92,6 +61,56 @@ export default function CommunitySettingsPage() {
       console.error("Fetch staff failed", err);
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/community");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "โหลดข้อมูลไม่สำเร็จ");
+
+        if (active && data.community) {
+          setName(data.community.name || "");
+          setAddress(data.community.address || "");
+          setBankName(data.community.bank_name || "");
+          setBankAccountNumber(data.community.bank_account_number || "");
+          setBankAccountName(data.community.bank_account_name || "");
+          setPromptpayId(data.community.promptpay_id || "");
+          setLineChannelId(data.community.line_channel_id || "");
+          setLineLiffId(data.community.line_liff_id || "");
+          setLineChannelSecret(data.community.line_channel_secret || "");
+          setLineChannelAccessToken(data.community.line_channel_access_token || "");
+        }
+      } catch (err: unknown) {
+        if (active) {
+          setMessage({
+            type: "error",
+            text: err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล",
+          });
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/staff");
+        const data = await res.json();
+        if (active && res.ok && data.staff) {
+          setStaffList(data.staff);
+          if (data.currentUserId) setCurrentUserId(data.currentUserId);
+        }
+      } catch (err) {
+        console.error("Fetch staff failed", err);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,8 +145,8 @@ export default function CommunitySettingsPage() {
 
       setMessage({ type: "success", text: "บันทึกข้อมูลชื่อหมู่บ้านและการตั้งค่า LINE เรียบร้อยแล้ว!" });
       router.refresh();
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการบันทึก" });
+    } catch (err: unknown) {
+      setMessage({ type: "error", text: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการบันทึก" });
     } finally {
       setSaving(false);
     }
@@ -146,7 +165,7 @@ export default function CommunitySettingsPage() {
     setStaffMessage(null);
 
     try {
-      const body: any = { staffId };
+      const body: { staffId: string; fullName?: string; phone?: string; newPassword?: string } = { staffId };
       if (editName.trim()) body.fullName = editName.trim();
       if (editPhone.trim()) body.phone = editPhone.trim();
       if (editPassword.trim()) {
@@ -169,8 +188,8 @@ export default function CommunitySettingsPage() {
       setEditingStaffId(null);
       setEditPassword("");
       fetchStaffData();
-    } catch (err: any) {
-      setStaffMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการบันทึก" });
+    } catch (err: unknown) {
+      setStaffMessage({ type: "error", text: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการบันทึก" });
     } finally {
       setStaffSaving(false);
     }
@@ -214,8 +233,8 @@ export default function CommunitySettingsPage() {
       setNewPassword("");
       setNewRole("committee");
       fetchStaffData();
-    } catch (err: any) {
-      setStaffMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการเพิ่มกรรมการ" });
+    } catch (err: unknown) {
+      setStaffMessage({ type: "error", text: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการเพิ่มกรรมการ" });
     } finally {
       setAddStaffLoading(false);
     }
@@ -236,8 +255,8 @@ export default function CommunitySettingsPage() {
 
       setStaffMessage({ type: "success", text: `ลบบัญชี ${staff.full_name} เรียบร้อยแล้ว` });
       fetchStaffData();
-    } catch (err: any) {
-      setStaffMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการลบกรรมการ" });
+    } catch (err: unknown) {
+      setStaffMessage({ type: "error", text: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการลบกรรมการ" });
     }
   };
 
@@ -607,7 +626,7 @@ export default function CommunitySettingsPage() {
                 </label>
                 <select
                   value={newRole}
-                  onChange={(e) => setNewRole(e.target.value as any)}
+                  onChange={(e) => setNewRole(e.target.value as "committee" | "community_admin")}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="committee">กรรมการทั่วไป</option>

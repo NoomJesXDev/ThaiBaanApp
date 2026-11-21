@@ -62,8 +62,8 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ success: true, bills });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("LIFF Bills Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

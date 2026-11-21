@@ -15,7 +15,7 @@ interface UtilityRate {
   name: string;
   is_metered: boolean;
   flat_rate: number | null;
-  rate_tiers: any;
+  rate_tiers: Array<{ min_unit?: number; max_unit?: number | null; rate?: number }> | null;
 }
 
 interface BillingSet {
@@ -72,9 +72,6 @@ interface SpecialEventItem {
 export default function BillingManagement({
   houses,
   rates,
-  previousReadings,
-  communityId,
-  staffId,
 }: BillingManagementProps) {
   const currentYear = new Date().getFullYear();
   const currentMonthIdx = new Date().getMonth();
@@ -119,7 +116,21 @@ export default function BillingManagement({
   };
 
   useEffect(() => {
-    fetchBillingSets();
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/billing/sets");
+        const data = await res.json();
+        if (active && res.ok) {
+          setBillingSets(data.sets || []);
+        }
+      } catch (err) {
+        console.error("Error loading billing sets", err);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Load or create billing period
@@ -146,7 +157,7 @@ export default function BillingManagement({
       // If active items are defined for the period, initialize bills
       if (activeItems.length > 0) {
         const initialBills = houses.map((house) => {
-          const existingBill = existingBills.find((b: any) => b.house_id === house.id);
+          const existingBill = existingBills.find((b: Record<string, unknown>) => b.house_id === house.id);
           const houseArrears = existingBill?.arrears_amount !== undefined && existingBill?.arrears_amount !== null
             ? Number(existingBill.arrears_amount)
             : Number(arrearsMap[house.id]?.total_arrears || 0);
@@ -154,8 +165,8 @@ export default function BillingManagement({
           
           const itemsMap: Record<string, DynamicBillItem> = {};
           
-          activeItems.forEach((item: any) => {
-            const savedItem = existingBill?.bill_items?.find((bi: any) => bi.utility_type === item.utility_type);
+          activeItems.forEach((item: UtilityRate) => {
+            const savedItem = existingBill?.bill_items?.find((bi: Record<string, unknown>) => bi.utility_type === item.utility_type);
             
             let prevReading = 0;
             if (item.is_metered) {
@@ -181,7 +192,7 @@ export default function BillingManagement({
               if (item.is_metered) {
                 amount = 0;
               } else if (item.utility_type === "funeral") {
-                const totalFuneral = (period.funeral_events || []).reduce((sum: number, ev: any) => sum + (Number(ev.amount) || 0), 0);
+                const totalFuneral = (period.funeral_events || []).reduce((sum: number, ev: SpecialEventItem) => sum + (Number(ev.amount) || 0), 0);
                 amount = totalFuneral;
               } else {
                 amount = Number(item.flat_rate || 0);
@@ -236,16 +247,144 @@ export default function BillingManagement({
       } else {
         setBills([]);
       }
-    } catch (err: any) {
-      alert("โหลดข้อมูลรอบบิลไม่สำเร็จ: " + (err.message || "เกิดข้อผิดพลาด"));
+    } catch (err: unknown) {
+      alert("โหลดข้อมูลรอบบิลไม่สำเร็จ: " + ((err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด"));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadBillingPeriod();
-  }, [selectedMonth, selectedYear]);
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/billing/period?month=${selectedMonth}&year=${selectedYear}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการโหลดรอบบิล");
+        if (!active) return;
+
+        const period = data.period;
+        const existingBills = data.bills;
+        const prevReadingsMap = data.prevReadings || {};
+
+        setBillingPeriodId(period.id);
+        setPeriodClosed(period.is_closed);
+        setFuneralOccurrences(period.funeral_occurrences || 0);
+        setFuneralEvents(period.funeral_events || []);
+
+        const activeItems = period.selected_items || [];
+        setSelectedItems(activeItems);
+        const arrearsMap = data.arrearsMap || {};
+
+        if (activeItems.length > 0) {
+          const initialBills = houses.map((house) => {
+            const existingBill = existingBills.find((b: Record<string, unknown>) => b.house_id === house.id);
+            const houseArrears =
+              existingBill?.arrears_amount !== undefined && existingBill?.arrears_amount !== null
+                ? Number(existingBill.arrears_amount)
+                : Number(arrearsMap[house.id]?.total_arrears || 0);
+            const unpaidMonths = arrearsMap[house.id]?.unpaid_months || 0;
+
+            const itemsMap: Record<string, DynamicBillItem> = {};
+
+            activeItems.forEach((item: UtilityRate) => {
+              const savedItem = existingBill?.bill_items?.find(
+                (bi: Record<string, unknown>) => bi.utility_type === item.utility_type
+              );
+
+              let prevReading = 0;
+              if (item.is_metered) {
+                prevReading =
+                  savedItem?.previous_reading !== null && savedItem?.previous_reading !== undefined
+                    ? Number(savedItem.previous_reading)
+                    : Number(prevReadingsMap[house.id]?.[item.utility_type] || 0);
+              }
+
+              let currentReading = "";
+              if (item.is_metered && savedItem?.current_reading !== null && savedItem?.current_reading !== undefined) {
+                currentReading = String(savedItem.current_reading);
+              }
+
+              let unitsUsed = 0;
+              if (item.is_metered && savedItem?.units_used !== null && savedItem?.units_used !== undefined) {
+                unitsUsed = Number(savedItem.units_used);
+              }
+
+              let amount = 0;
+              if (savedItem) {
+                amount = Number(savedItem.amount);
+              } else if (item.is_metered) {
+                amount = 0;
+              } else if (item.utility_type === "funeral") {
+                const totalFuneral = (period.funeral_events || []).reduce(
+                  (sum: number, ev: SpecialEventItem) => sum + (Number(ev.amount) || 0),
+                  0
+                );
+                amount = totalFuneral;
+              } else {
+                amount = Number(item.flat_rate || 0);
+              }
+
+              itemsMap[item.utility_type] = {
+                utility_type: item.utility_type,
+                name: item.name,
+                is_metered: item.is_metered,
+                previous_reading: prevReading,
+                current_reading: currentReading,
+                units_used: unitsUsed,
+                amount,
+              };
+            });
+
+            const itemsTotal = Object.values(itemsMap).reduce((sum, it) => sum + it.amount, 0);
+            const total = itemsTotal + houseArrears;
+
+            if (existingBill) {
+              return {
+                id: existingBill.id,
+                house_id: house.id,
+                house_number: house.house_number,
+                owner_name: house.owner_name || "-",
+                items: itemsMap,
+                arrears_amount: houseArrears,
+                unpaid_months: unpaidMonths,
+                total_amount: Number(existingBill.total_amount),
+                status: existingBill.status as BillState["status"],
+                saved: true,
+                notified: !!existingBill.notified_at,
+              };
+            }
+            return {
+              house_id: house.id,
+              house_number: house.house_number,
+              owner_name: house.owner_name || "-",
+              items: itemsMap,
+              arrears_amount: houseArrears,
+              unpaid_months: unpaidMonths,
+              total_amount: total,
+              status: "unpaid" as BillState["status"],
+              saved: false,
+              notified: false,
+            };
+          });
+
+          setBills(initialBills);
+        } else {
+          setBills([]);
+        }
+      } catch (err: unknown) {
+        if (active) {
+          alert("โหลดข้อมูลรอบบิลไม่สำเร็จ: " + (err instanceof Error ? err.message : "เกิดข้อผิดพลาด"));
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedMonth, selectedYear, houses]);
 
   // Save billing set config
   const handleSaveBillingSet = async (e: React.FormEvent) => {
@@ -279,8 +418,8 @@ export default function BillingManagement({
       setTempSetName("");
       setTempSelectedRateIds([]);
       setIsSetConfigModalOpen(false);
-    } catch (err: any) {
-      alert("บันทึกชุดรายการไม่สำเร็จ: " + err.message);
+    } catch (err: unknown) {
+      alert("บันทึกชุดรายการไม่สำเร็จ: " + (err instanceof Error ? err.message : undefined));
     } finally {
       setSavingSet(false);
     }
@@ -305,8 +444,8 @@ export default function BillingManagement({
         setTempSelectedRateIds([]);
       }
       await fetchBillingSets();
-    } catch (err: any) {
-      alert("ลบชุดรายการไม่สำเร็จ: " + err.message);
+    } catch (err: unknown) {
+      alert("ลบชุดรายการไม่สำเร็จ: " + (err instanceof Error ? err.message : undefined));
     }
   };
 
@@ -333,8 +472,8 @@ export default function BillingManagement({
       }
 
       await loadBillingPeriod();
-    } catch (err: any) {
-      alert("เกิดข้อผิดพลาด: " + err.message);
+    } catch (err: unknown) {
+      alert("เกิดข้อผิดพลาด: " + (err instanceof Error ? err.message : undefined));
       setLoading(false);
     }
   };
@@ -365,8 +504,8 @@ export default function BillingManagement({
 
       setPeriodClosed(true);
       alert("ปิดรอบบิลเรียบร้อยแล้ว!");
-    } catch (err: any) {
-      alert("เกิดข้อผิดพลาด: " + err.message);
+    } catch (err: unknown) {
+      alert("เกิดข้อผิดพลาด: " + (err instanceof Error ? err.message : undefined));
     } finally {
       setLoading(false);
     }
@@ -416,8 +555,8 @@ export default function BillingManagement({
       );
       
       setIsFuneralModalOpen(false);
-    } catch (err: any) {
-      alert("เกิดข้อผิดพลาด: " + err.message);
+    } catch (err: unknown) {
+      alert("เกิดข้อผิดพลาด: " + (err instanceof Error ? err.message : undefined));
     }
   };
 
@@ -440,7 +579,7 @@ export default function BillingManagement({
         if (rateConfig) {
           if (rateConfig.is_metered) {
             const tier = rateConfig.rate_tiers?.[0];
-            const ratePerUnit = tier ? tier.rate : 10;
+            const ratePerUnit = tier?.rate !== undefined ? Number(tier.rate) : 10;
             amount = units * ratePerUnit;
           } else {
             amount = rateConfig.flat_rate ? Number(rateConfig.flat_rate) : 0;
@@ -511,8 +650,8 @@ export default function BillingManagement({
           b.house_id === houseId ? { ...b, id: savedBillId, saved: true } : b
         )
       );
-    } catch (err: any) {
-      alert("บันทึกไม่สำเร็จ: " + (err.message || "เกิดข้อผิดพลาด"));
+    } catch (err: unknown) {
+      alert("บันทึกไม่สำเร็จ: " + ((err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด"));
     }
   };
 
@@ -540,8 +679,8 @@ export default function BillingManagement({
         )
       );
       alert("ส่งแจ้งเตือน LINE เรียบร้อยแล้ว!");
-    } catch (err: any) {
-      alert("ไม่สามารถส่ง LINE ได้: " + err.message);
+    } catch (err: unknown) {
+      alert("ไม่สามารถส่ง LINE ได้: " + (err instanceof Error ? err.message : undefined));
     }
   };
 
@@ -746,7 +885,7 @@ export default function BillingManagement({
           <div className="space-y-2">
             <h3 className="text-base font-bold text-slate-800 font-display">เปิดการสร้างบิลรอบประจำเดือน</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-              กรุณาเลือก "ชุดรายการเก็บเงิน" ที่ต้องการเรียกเก็บประจำรอบเดือนนี้ ระบบจะประมวลผลบิลสำหรับชาวบ้านโดยอิงตามชุดรายการที่เลือก
+              กรุณาเลือก &ldquo;ชุดรายการเก็บเงิน&rdquo; ที่ต้องการเรียกเก็บประจำรอบเดือนนี้ ระบบจะประมวลผลบิลสำหรับชาวบ้านโดยอิงตามชุดรายการที่เลือก
             </p>
           </div>
 

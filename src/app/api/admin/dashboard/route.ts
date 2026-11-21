@@ -108,19 +108,19 @@ export async function GET(req: Request) {
             ? Math.round((Number(stats.total_collected) / Number(stats.total_billed)) * 100) 
             : 0
         },
-        categoryBreakdown: categoryResult.rows.map((row: any) => ({
+        categoryBreakdown: categoryResult.rows.map((row: Record<string, unknown>) => ({
           utilityType: row.utility_type,
           name: row.category_name,
           totalAmount: Number(row.total_amount),
           itemCount: Number(row.item_count)
         })),
-        monthlyTrends: monthlyResult.rows.map((row: any) => ({
+        monthlyTrends: monthlyResult.rows.map((row: Record<string, unknown>) => ({
           month: Number(row.period_month),
           paidAmount: Number(row.paid_amount),
           unpaidAmount: Number(row.unpaid_amount),
           billsCount: Number(row.bills_count)
         })),
-        defaulters: defaultersResult.rows.map((row: any) => ({
+        defaulters: defaultersResult.rows.map((row: Record<string, unknown>) => ({
           houseId: row.house_id,
           houseNumber: row.house_number,
           ownerName: row.owner_name || "-",
@@ -130,8 +130,8 @@ export async function GET(req: Request) {
         }))
       }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Dashboard API Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

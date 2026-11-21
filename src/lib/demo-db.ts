@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -1107,8 +1108,16 @@ export async function executeDemoQuery<T extends QueryResultRow = any>(
 
   // 8. Payments & Verification Queries
   if (sqlLower.includes("from payments p") && sqlLower.includes("where p.verified_at is null")) {
+    const commId = params[0];
     const rows = db.payments
-      .filter((p) => !p.verified_at)
+      .filter((p) => {
+        if (p.verified_at) return false;
+        if (commId) {
+          const h = db.houses.find((item) => item.id === p.house_id);
+          return h?.community_id === commId;
+        }
+        return true;
+      })
       .map((p) => {
         const h = db.houses.find((item) => item.id === p.house_id);
         const b = db.bills.find((item) => item.id === p.bill_id);

@@ -58,15 +58,35 @@ export default function DashboardPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
       setData(json.data);
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาด");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/dashboard");
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
+        if (active) {
+          setData(json.data);
+          setError(null);
+        }
+      } catch (err: unknown) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (loading) {

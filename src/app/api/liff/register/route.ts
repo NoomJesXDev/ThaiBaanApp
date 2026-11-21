@@ -61,9 +61,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true, message: "ผูกบัญชี LINE กับบ้านเลขที่สำเร็จ" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("LIFF Register Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }
 
@@ -80,8 +80,8 @@ export async function DELETE(req: Request) {
     await query("DELETE FROM house_members WHERE id = $1", [memberId]);
 
     return NextResponse.json({ success: true, message: "ยกเลิกการเชื่อมโยงบัญชีสำเร็จ" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("LIFF Unlink Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

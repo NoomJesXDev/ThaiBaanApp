@@ -26,8 +26,8 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json({ success: true, message: "แจ้งชำระเงินและแนบหลักฐานสลิปสำเร็จ" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("LIFF Pay Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

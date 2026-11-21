@@ -22,9 +22,9 @@ export async function GET(req: Request) {
     );
 
     return NextResponse.json({ success: true, rates: result.rows });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Fetch Rates Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }
 
@@ -59,9 +59,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true, data: result.rows[0] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Save Rate Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }
 
@@ -84,8 +84,8 @@ export async function DELETE(req: Request) {
     );
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Delete Rate Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

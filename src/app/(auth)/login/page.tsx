@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const nextRoute = searchParams.get("next") || "/admin/billing";
 
@@ -30,8 +29,8 @@ function LoginForm() {
       if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
 
       window.location.href = nextRoute;
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
     } finally {
       setLoading(false);
     }

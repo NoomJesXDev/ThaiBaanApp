@@ -67,9 +67,9 @@ export async function POST(req: Request) {
 
     // Send push message to all linked family members
     const notifyResults = await Promise.all(
-      members.map(async (member: any) => {
+      members.map(async (member: Record<string, unknown>) => {
         return await sendTextPush(
-          member.line_user_id,
+          String(member.line_user_id),
           notifyText,
           bill.line_channel_access_token || undefined
         );
@@ -77,10 +77,10 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json({ success: true, results: notifyResults });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Notify Verify Route Error", err);
     return NextResponse.json(
-      { error: err.message || "Internal Server Error" },
+      { error: (err instanceof Error ? err.message : undefined) || "Internal Server Error" },
       { status: 500 }
     );
   }

@@ -34,8 +34,8 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json({ success: true, message: "ลงทะเบียนกรรมการและชุมชนสำเร็จ" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Register Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาดในการลงทะเบียน" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการลงทะเบียน" }, { status: 500 });
   }
 }

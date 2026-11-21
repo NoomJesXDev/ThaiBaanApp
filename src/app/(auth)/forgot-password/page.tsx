@@ -1,11 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -45,8 +43,8 @@ export default function ForgotPasswordPage() {
       setTimeout(() => {
         window.location.href = "/login";
       }, 2500);
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการตั้งรหัสผ่านใหม่");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการตั้งรหัสผ่านใหม่");
     } finally {
       setLoading(false);
     }

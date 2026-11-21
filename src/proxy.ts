@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyJWT } from '@/lib/auth';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const token = request.cookies.get('session')?.value;
   const user = token ? await verifyJWT(token) : null;
 
@@ -16,7 +16,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect logged-in admin users away from login/register to dashboard
+  // Redirect logged-in admin users away from login/register to billing
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone();
     url.pathname = '/admin/billing';

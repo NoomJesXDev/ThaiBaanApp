@@ -71,53 +71,59 @@ function LiffBillsContent() {
   const [house, setHouse] = useState<House | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
 
-  const fetchHouseAndBills = async () => {
-    if (!profile) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      // 1. Get resident's house
-      const profileRes = await fetch(`/api/liff/profile?lineUserId=${profile.userId}`);
-      const profileData = await profileRes.json();
-      if (!profileRes.ok) throw new Error(profileData.error || "เกิดข้อผิดพลาดในการดึงข้อมูล");
-
-      if (!profileData.registered) {
-        router.push("/liff/register");
-        return;
-      }
-
-      const residentHouse = profileData.data.houses;
-      setHouse(residentHouse);
-
-      // 2. Fetch bills for this house
-      let url = `/api/liff/bills?houseId=${residentHouse.id}`;
-      if (billIdParam) {
-        url += `&billId=${billIdParam}`;
-      }
-
-      const billsRes = await fetch(url);
-      const billsData = await billsRes.json();
-      if (!billsRes.ok) throw new Error(billsData.error || "เกิดข้อผิดพลาดในการโหลดค่าน้ำ");
-
-      // Sort by period descending
-      const sortedBills = (billsData.bills || []).sort(
-        (a: any, b: any) =>
-          b.billing_periods.period_year - a.billing_periods.period_year ||
-          b.billing_periods.period_month - a.billing_periods.period_month
-      );
-
-      setBills(sortedBills);
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการโหลดค่าน้ำ");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchHouseAndBills();
-  }, [profile, billIdParam]);
+    if (!profile) return;
+    let active = true;
+
+    (async () => {
+      try {
+        // 1. Get resident's house
+        const profileRes = await fetch(`/api/liff/profile?lineUserId=${profile.userId}`);
+        const profileData = await profileRes.json();
+        if (!profileRes.ok) throw new Error(profileData.error || "เกิดข้อผิดพลาดในการดึงข้อมูล");
+
+        if (!profileData.registered) {
+          if (active) router.push("/liff/register");
+          return;
+        }
+
+        const residentHouse = profileData.data.houses;
+        if (active) setHouse(residentHouse);
+
+        // 2. Fetch bills for this house
+        let url = `/api/liff/bills?houseId=${residentHouse.id}`;
+        if (billIdParam) {
+          url += `&billId=${billIdParam}`;
+        }
+
+        const billsRes = await fetch(url);
+        const billsData = await billsRes.json();
+        if (!billsRes.ok) throw new Error(billsData.error || "เกิดข้อผิดพลาดในการโหลดค่าน้ำ");
+
+        // Sort by period descending
+        const sortedBills = ((billsData.bills || []) as Bill[]).sort(
+          (a, b) =>
+            b.billing_periods.period_year - a.billing_periods.period_year ||
+            b.billing_periods.period_month - a.billing_periods.period_month
+        );
+
+        if (active) {
+          setBills(sortedBills);
+          setError(null);
+        }
+      } catch (err: unknown) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดค่าน้ำ");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [profile, billIdParam, router]);
 
   if (loading) {
     return (
@@ -200,7 +206,7 @@ function LiffBillsContent() {
                     <div className="bg-slate-50/70 p-2.5 rounded-lg text-[10px] text-slate-500 space-y-1 border border-slate-100">
                       <p className="font-bold text-slate-600">รายละเอียดค่าบริการพิเศษ/สงเคราะห์:</p>
                       <ul className="list-disc list-inside space-y-0.5 pl-1">
-                        {bill.billing_periods.funeral_events.map((event: any, i: number) => {
+                        {bill.billing_periods.funeral_events.map((event: { type?: string; name?: string; amount: number }, i: number) => {
                           const typeLabel = getEventTypeName(event.type);
                           const details = event.name ? `: ${event.name}` : "";
                           return (

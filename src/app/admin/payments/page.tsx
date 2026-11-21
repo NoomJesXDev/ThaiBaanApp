@@ -10,8 +10,9 @@ export default async function PaymentsPage() {
   }
 
   const staffId = user.id;
+  const communityId = user.community_id;
 
-  // Fetch pending payments where verified_at is null
+  // Fetch pending payments where verified_at is null for this community
   const paymentsResult = await query(
     `SELECT 
        p.id as payment_id, p.bill_id, p.house_id, p.amount as paid_amount, p.slip_image_url, p.paid_at, p.note,
@@ -22,29 +23,30 @@ export default async function PaymentsPage() {
      JOIN houses h ON p.house_id = h.id
      JOIN bills b ON p.bill_id = b.id
      JOIN billing_periods bp ON b.billing_period_id = bp.id
-     WHERE p.verified_at IS NULL
-     ORDER BY p.created_at ASC`
+     WHERE p.verified_at IS NULL AND h.community_id = $1
+     ORDER BY p.created_at ASC`,
+    [communityId]
   );
 
-  const pendingPayments = paymentsResult.rows.map((row: any) => ({
-    id: row.payment_id,
-    bill_id: row.bill_id,
-    house_id: row.house_id,
+  const pendingPayments = paymentsResult.rows.map((row: Record<string, unknown>) => ({
+    id: String(row.payment_id),
+    bill_id: String(row.bill_id),
+    house_id: String(row.house_id),
     amount: Number(row.paid_amount),
-    slip_image_url: row.slip_image_url,
-    paid_at: row.paid_at,
-    note: row.note,
+    slip_image_url: String(row.slip_image_url || ""),
+    paid_at: String(row.paid_at || ""),
+    note: row.note ? String(row.note) : null,
     houses: {
-      house_number: row.house_number,
-      owner_name: row.owner_name
+      house_number: String(row.house_number || ""),
+      owner_name: String(row.owner_name || "")
     },
     bills: {
-      id: row.bill_id,
+      id: String(row.bill_id),
       total_amount: Number(row.bill_amount),
-      status: row.bill_status,
+      status: String(row.bill_status || ""),
       billing_periods: {
-        period_month: row.period_month,
-        period_year: row.period_year
+        period_month: Number(row.period_month),
+        period_year: Number(row.period_year)
       }
     }
   }));

@@ -1,6 +1,6 @@
 export async function sendPushMessage(
   lineUserId: string,
-  messages: any[],
+  messages: Array<Record<string, unknown>>,
   communityAccessToken?: string
 ) {
   const token = communityAccessToken || process.env.LINE_CHANNEL_ACCESS_TOKEN;
@@ -28,9 +28,10 @@ export async function sendPushMessage(
       return { success: false, error: data };
     }
     return { success: true, data };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("LINE Push Message Exception", error);
-    return { success: false, error: error.message || "Failed to send message" };
+    const message = error instanceof Error ? error.message : "Failed to send message";
+    return { success: false, error: message };
   }
 }
 
@@ -63,7 +64,7 @@ export async function sendBillFlexPush(
   },
   communityAccessToken?: string
 ) {
-  const itemRows: any[] = [];
+  const itemRows: Array<Record<string, unknown>> = [];
 
   if (billData.items && billData.items.length > 0) {
     billData.items.forEach((item) => {

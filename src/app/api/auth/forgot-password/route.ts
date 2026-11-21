@@ -39,8 +39,15 @@ export async function POST(req: Request) {
     const inputCleanPhone = phone.replace(/\D/g, "");
     const dbCleanPhone = staff.phone ? staff.phone.replace(/\D/g, "") : "";
 
-    // If staff has a registered phone, it must match
-    if (dbCleanPhone && dbCleanPhone !== inputCleanPhone) {
+    // Require registered phone number to exist and match to prevent unauthorized resets
+    if (!dbCleanPhone) {
+      return NextResponse.json(
+        { error: "บัญชีนี้ยังไม่ได้ลงทะเบียนเบอร์โทรศัพท์ กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่าน" },
+        { status: 400 }
+      );
+    }
+
+    if (dbCleanPhone !== inputCleanPhone) {
       return NextResponse.json(
         { error: "เบอร์โทรศัพท์ไม่ตรงกับข้อมูลในระบบ กรุณาตรวจสอบอีกครั้ง" },
         { status: 400 }
@@ -53,20 +60,20 @@ export async function POST(req: Request) {
     await query(
       `UPDATE staff 
        SET password_hash = $1, 
-           phone = COALESCE(NULLIF($2, ''), phone),
            updated_at = NOW() 
-       WHERE id = $3`,
-      [passwordHash, phone.trim(), staff.id]
+       WHERE id = $2`,
+      [passwordHash, staff.id]
     );
 
     return NextResponse.json({
       success: true,
       message: "ตั้งรหัสผ่านใหม่สำเร็จแล้ว สามารถเข้าสู่ระบบได้ทันที",
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Forgot Password Error", err);
+    const message = err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการตั้งรหัสผ่านใหม่";
     return NextResponse.json(
-      { error: err.message || "เกิดข้อผิดพลาดในการตั้งรหัสผ่านใหม่" },
+      { error: message },
       { status: 500 }
     );
   }

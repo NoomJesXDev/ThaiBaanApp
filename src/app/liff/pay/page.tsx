@@ -91,22 +91,27 @@ function LiffPayContent() {
         // Map format matching
         targetBill.houses = residentHouse;
         setBill(targetBill);
-      } catch (err: any) {
-        setError(err.message || "เกิดข้อผิดพลาดในการโหลดบิล");
+      } catch (err: unknown) {
+        setError((err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการโหลดบิล");
       } finally {
         setLoading(false);
       }
     };
 
     fetchBill();
-  }, [profile, billId]);
+  }, [profile, billId, router]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
     if (!selectedFile.type.startsWith("image/")) {
-      setError("กรุณาเลือกไฟล์รูปภาพหลักฐานสลิปเท่านั้น");
+      setError("กรุณาเลือกไฟล์รูปภาพเท่านั้น (JPG, PNG, WebP)");
+      return;
+    }
+
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setError("ขนาดไฟล์รูปภาพต้องไม่เกิน 5 MB");
       return;
     }
 
@@ -157,8 +162,8 @@ function LiffPayContent() {
       setTimeout(() => {
         router.push("/liff/bills");
       }, 2000);
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการแนบสลิป");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการแนบสลิป");
     } finally {
       setUploading(false);
     }

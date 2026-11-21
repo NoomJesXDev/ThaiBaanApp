@@ -35,8 +35,8 @@ export default function RegisterPage() {
       setTimeout(() => {
         router.push("/login");
       }, 3000);
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการลงทะเบียน");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการลงทะเบียน");
     } finally {
       setLoading(false);
     }

@@ -60,15 +60,44 @@ export default function LiffRegisterPage() {
           setSelectedCommunityId(data.communities[0].id);
         }
       }
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการดึงข้อมูล");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการดึงข้อมูล");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    checkRegistration();
+    if (!profile) return;
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/liff/profile?lineUserId=${profile.userId}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
+
+        if (!active) return;
+        if (data.registered) {
+          setLinkedHouse(data.data);
+        } else {
+          setLinkedHouse(null);
+          setCommunities(data.communities || []);
+          if (data.communities && data.communities.length > 0) {
+            setSelectedCommunityId(data.communities[0].id);
+          }
+        }
+        setError(null);
+      } catch (err: unknown) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการดึงข้อมูล");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [profile]);
 
   const handleSearchHouse = async (e: React.FormEvent) => {
@@ -102,8 +131,8 @@ export default function LiffRegisterPage() {
           },
         });
       }
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการตรวจสอบบ้านเลขที่");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการตรวจสอบบ้านเลขที่");
     }
   };
 
@@ -136,8 +165,8 @@ export default function LiffRegisterPage() {
         setSuccess(null);
         checkRegistration();
       }, 2000);
-    } catch (err: any) {
-      setError(err.message || "การลงทะเบียนล้มเหลว");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : undefined) || "การลงทะเบียนล้มเหลว");
     } finally {
       setRegistering(false);
     }
@@ -160,8 +189,8 @@ export default function LiffRegisterPage() {
       setSearchedHouse(null);
       setHouseNumberInput("");
       checkRegistration();
-    } catch (err: any) {
-      setError(err.message || "ไม่สามารถยกเลิกการผูกบัญชีได้");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : undefined) || "ไม่สามารถยกเลิกการผูกบัญชีได้");
       setLoading(false);
     }
   };

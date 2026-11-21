@@ -2,6 +2,18 @@ import bcrypt from 'bcryptjs';
 import * as jose from 'jose';
 import { NextRequest } from 'next/server';
 
+export interface SessionPayload extends jose.JWTPayload {
+  userId: string;
+  email: string;
+  communityId: string;
+  role: string;
+  fullName?: string;
+}
+
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.warn('⚠️ JWT_SECRET is not set in production environment! Using fallback secret is insecure.');
+}
+
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'fallback-secret-at-least-32-characters-long-key'
 );
@@ -14,7 +26,7 @@ export async function comparePassword(password: string, hash: string): Promise<b
   return bcrypt.compare(password, hash);
 }
 
-export async function signJWT(payload: any, expiry: string = '7d'): Promise<string> {
+export async function signJWT(payload: SessionPayload, expiry: string = '7d'): Promise<string> {
   return new jose.SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -22,16 +34,16 @@ export async function signJWT(payload: any, expiry: string = '7d'): Promise<stri
     .sign(JWT_SECRET);
 }
 
-export async function verifyJWT(token: string): Promise<any | null> {
+export async function verifyJWT(token: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jose.jwtVerify(token, JWT_SECRET);
-    return payload;
-  } catch (error) {
+    return payload as SessionPayload;
+  } catch {
     return null;
   }
 }
 
-export async function getSessionUser(req: NextRequest) {
+export async function getSessionUser(req: NextRequest): Promise<SessionPayload | null> {
   const token = req.cookies.get('session')?.value;
   if (!token) return null;
   return verifyJWT(token);

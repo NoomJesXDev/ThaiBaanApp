@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     const communityId = user.communityId;
 
     // 1. Check if period exists
-    let periodResult = await query(
+    const periodResult = await query(
       "SELECT * FROM billing_periods WHERE community_id = $1 AND period_month = $2 AND period_year = $3",
       [communityId, month, year]
     );
@@ -81,11 +81,13 @@ export async function GET(req: Request) {
          WHERE b.billing_period_id = $1 AND bi.current_reading IS NOT NULL`,
         [prevPeriod.id]
       );
-      prevItemsResult.rows.forEach((row: any) => {
-        if (!prevReadings[row.house_id]) {
-          prevReadings[row.house_id] = {};
+      prevItemsResult.rows.forEach((row: Record<string, unknown>) => {
+        const hId = String(row.house_id);
+        const uType = String(row.utility_type);
+        if (!prevReadings[hId]) {
+          prevReadings[hId] = {};
         }
-        prevReadings[row.house_id][row.utility_type] = Number(row.current_reading);
+        prevReadings[hId][uType] = Number(row.current_reading);
       });
     }
 
@@ -101,17 +103,17 @@ export async function GET(req: Request) {
       [communityId, year, month]
     );
     const arrearsMap: Record<string, { total_arrears: number; unpaid_months: number }> = {};
-    arrearsResult.rows.forEach((row: any) => {
-      arrearsMap[row.house_id] = {
+    arrearsResult.rows.forEach((row: Record<string, unknown>) => {
+      arrearsMap[String(row.house_id)] = {
         total_arrears: Number(row.total_arrears) || 0,
         unpaid_months: Number(row.unpaid_months) || 0,
       };
     });
 
     return NextResponse.json({ success: true, period, bills, prevReadings, arrearsMap });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Billing Period Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }
 
@@ -155,8 +157,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Update Billing Period Error", err);
-    return NextResponse.json({ error: err.message || "เกิดข้อผิดพลาด" }, { status: 500 });
+    return NextResponse.json({ error: (err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด" }, { status: 500 });
   }
 }

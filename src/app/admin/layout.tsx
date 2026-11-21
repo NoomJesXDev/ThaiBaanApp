@@ -1,5 +1,4 @@
 import React from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerUser } from "@/lib/auth-server";
 import { query } from "@/lib/db";

@@ -113,8 +113,8 @@ export default function HouseManagement({
       }
 
       setIsModalOpen(false);
-    } catch (err: any) {
-      setError(err.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
     } finally {
       setLoading(false);
     }
@@ -132,8 +132,8 @@ export default function HouseManagement({
       if (!res.ok) throw new Error(data.error || "ไม่สามารถลบข้อมูลได้");
 
       setHouses(houses.filter((h) => h.id !== id));
-    } catch (err: any) {
-      alert("ลบข้อมูลไม่สำเร็จ: " + (err.message || "เกิดข้อผิดพลาด"));
+    } catch (err: unknown) {
+      alert("ลบข้อมูลไม่สำเร็จ: " + ((err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาด"));
     }
   };
 

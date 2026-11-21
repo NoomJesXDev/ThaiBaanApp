@@ -77,15 +77,15 @@ export default function LiffHistoryPage() {
         if (!historyRes.ok) throw new Error(historyData.error || "เกิดข้อผิดพลาดในการโหลดประวัติ");
 
         // Sort by period descending
-        const sorted = (historyData.bills || []).sort(
-          (a: any, b: any) =>
+        const sorted = ((historyData.bills || []) as Bill[]).sort(
+          (a, b) =>
             b.billing_periods.period_year - a.billing_periods.period_year ||
             b.billing_periods.period_month - a.billing_periods.period_month
         );
 
         setPaidBills(sorted);
-      } catch (err: any) {
-        setError(err.message || "เกิดข้อผิดพลาดในการดึงข้อมูลประวัติ");
+      } catch (err: unknown) {
+        setError((err instanceof Error ? err.message : undefined) || "เกิดข้อผิดพลาดในการดึงข้อมูลประวัติ");
       } finally {
         setLoading(false);
       }

@@ -49,9 +49,9 @@ export async function POST(req: Request) {
     // verified.name = display name
     // verified.picture = profile image URL
     return NextResponse.json({ profile: verified });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { error: err.message || 'Internal Server Error' },
+      { error: (err instanceof Error ? err.message : undefined) || 'Internal Server Error' },
       { status: 500 }
     );
   }

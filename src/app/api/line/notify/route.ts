@@ -72,15 +72,15 @@ export async function POST(req: Request) {
       ? `https://liff.line.me/${liffId}?billId=${bill.id}`
       : `${appUrl}/liff/bills?billId=${bill.id}`;
 
-    const formattedItems = billItems.map((i: any) => ({
-      name: i.name,
+    const formattedItems = billItems.map((i: Record<string, unknown>) => ({
+      name: String(i.name || ""),
       amount: Number(i.amount),
     }));
 
     const notifyResults = await Promise.all(
-      members.map(async (member: any) => {
+      members.map(async (member: Record<string, unknown>) => {
         return await sendBillFlexPush(
-          member.line_user_id,
+          String(member.line_user_id),
           {
             monthStr,
             houseNumber: bill.house_number,
@@ -112,10 +112,10 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json({ success: true, results: notifyResults });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Notify Route Error", err);
     return NextResponse.json(
-      { error: err.message || "Internal Server Error" },
+      { error: (err instanceof Error ? err.message : undefined) || "Internal Server Error" },
       { status: 500 }
     );
   }
