@@ -1,6 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import * as XLSX from "xlsx";
+
+interface ImportPreviewRow {
+  houseNumber: string;
+  ownerName: string;
+  waterMeterId: string;
+  isExisting: boolean;
+}
 
 interface HouseMember {
   id: string;
@@ -40,6 +48,165 @@ export default function HouseManagement({
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Bulk Import states
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importRows, setImportRows] = useState<ImportPreviewRow[]>([]);
+  const [importFileName, setImportFileName] = useState("");
+  const [duplicateMode, setDuplicateMode] = useState<"skip" | "update">("skip");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<{
+    inserted: number;
+    updated: number;
+    skipped: number;
+    total: number;
+  } | null>(null);
+
+  const openImportModal = () => {
+    setImportRows([]);
+    setImportFileName("");
+    setDuplicateMode("skip");
+    setImportError(null);
+    setImportSummary(null);
+    setIsImportModalOpen(true);
+  };
+
+  const handleDownloadTemplate = () => {
+    const sampleData = [
+      { บ้านเลขที่: "1/1", ชื่อเจ้าของบ้าน: "นายสมชาย ใจดี", เลขมิเตอร์น้ำ: "M-001" },
+      { บ้านเลขที่: "1/2", ชื่อเจ้าของบ้าน: "นางสมศรี มีสุข", เลขมิเตอร์น้ำ: "M-002" },
+      { บ้านเลขที่: "1/3", ชื่อเจ้าของบ้าน: "นายมานะ รักเรียน", เลขมิเตอร์น้ำ: "M-003" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+    ws["!cols"] = [{ wch: 16 }, { wch: 28 }, { wch: 18 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "รายชื่อลูกบ้าน");
+    XLSX.writeFile(wb, "template-houses-communex.xlsx");
+  };
+
+  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportError(null);
+    setImportSummary(null);
+    setImportFileName(file.name);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) {
+        throw new Error("ไม่พบชีทข้อมูลในไฟล์");
+      }
+
+      const sheet = workbook.Sheets[firstSheetName];
+      const rawMatrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        defval: "",
+      });
+
+      if (rawMatrix.length === 0) {
+        throw new Error("ไฟล์ไม่มีข้อมูล");
+      }
+
+      // Detect header row
+      const firstRow = (rawMatrix[0] || []).map((cell) => String(cell || "").trim().toLowerCase());
+      const findColIndex = (keywords: string[]) =>
+        firstRow.findIndex((h) => keywords.some((k) => h.includes(k)));
+
+      const houseCol = findColIndex(["บ้านเลขที่", "เลขที่บ้าน", "house_number", "house"]);
+      const ownerCol = findColIndex(["เจ้าของ", "ชื่อ", "owner_name", "owner", "name"]);
+      const meterCol = findColIndex(["มิเตอร์", "meter", "water_meter"]);
+
+      const hasHeader = houseCol !== -1 || ownerCol !== -1 || meterCol !== -1;
+      const startIdx = hasHeader ? 1 : 0;
+      const hIdx = houseCol !== -1 ? houseCol : 0;
+      const oIdx = ownerCol !== -1 ? ownerCol : 1;
+      const mIdx = meterCol !== -1 ? meterCol : 2;
+
+      const existingSet = new Set(houses.map((h) => h.house_number.trim().toLowerCase()));
+      const parsed: ImportPreviewRow[] = [];
+
+      for (let i = startIdx; i < rawMatrix.length; i++) {
+        const row = rawMatrix[i] || [];
+        const hNum = String(row[hIdx] ?? "").trim();
+        if (!hNum) continue;
+
+        parsed.push({
+          houseNumber: hNum,
+          ownerName: String(row[oIdx] ?? "").trim(),
+          waterMeterId: String(row[mIdx] ?? "").trim(),
+          isExisting: existingSet.has(hNum.toLowerCase()),
+        });
+      }
+
+      if (parsed.length === 0) {
+        throw new Error("ไม่พบแถวข้อมูลที่มีบ้านเลขที่ กรุณาตรวจสอบรูปแบบไฟล์");
+      }
+
+      setImportRows(parsed);
+    } catch (err: unknown) {
+      setImportRows([]);
+      setImportError(err instanceof Error ? err.message : "ไม่สามารถอ่านไฟล์ได้ กรุณาใช้ไฟล์ .xlsx หรือ .csv");
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (importRows.length === 0) return;
+    setImporting(true);
+    setImportError(null);
+
+    try {
+      const res = await fetch("/api/houses/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          houses: importRows.map((r) => ({
+            houseNumber: r.houseNumber,
+            ownerName: r.ownerName || null,
+            waterMeterId: r.waterMeterId || null,
+          })),
+          duplicateMode,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "นำเข้าข้อมูลไม่สำเร็จ");
+
+      setImportSummary(data.summary);
+
+      // Update local houses list immediately
+      setHouses((prev) => {
+        const updatedMap = new Map<string, House>();
+        prev.forEach((h) => updatedMap.set(h.id, h));
+
+        (data.updatedRows || []).forEach((row: House) => {
+          const existing = updatedMap.get(row.id);
+          updatedMap.set(row.id, {
+            ...row,
+            house_members: existing?.house_members || [],
+          });
+        });
+
+        (data.insertedRows || []).forEach((row: House) => {
+          updatedMap.set(row.id, {
+            ...row,
+            house_members: [],
+          });
+        });
+
+        return Array.from(updatedMap.values()).sort((a, b) =>
+          a.house_number.localeCompare(b.house_number, "th", { numeric: true })
+        );
+      });
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const openAddModal = () => {
     setEditingHouse(null);
@@ -157,12 +324,20 @@ export default function HouseManagement({
             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-sm"
           />
         </div>
-        <button
-          onClick={openAddModal}
-          className="bg-primary hover:bg-primary-light text-white text-sm font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-colors"
-        >
-          ➕ เพิ่มบ้านเลขที่
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={openImportModal}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-colors"
+          >
+            📥 นำเข้าไฟล์ (Excel / CSV)
+          </button>
+          <button
+            onClick={openAddModal}
+            className="bg-primary hover:bg-primary-light text-white text-sm font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-colors"
+          >
+            ➕ เพิ่มบ้านเลขที่
+          </button>
+        </div>
       </div>
 
       {/* Houses Table for Desktop */}
@@ -385,6 +560,187 @@ export default function HouseManagement({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Import Modal (Excel / CSV) */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-100 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-lg text-slate-800 font-display">
+                  📥 นำเข้าข้อมูลลูกบ้านจากไฟล์ (Excel / CSV)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  รองรับไฟล์ .xlsx, .xls และ .csv (คอลัมน์: บ้านเลขที่, ชื่อเจ้าของบ้าน, เลขมิเตอร์น้ำ)
+                </p>
+              </div>
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {importError && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded text-xs text-red-700">
+                  {importError}
+                </div>
+              )}
+
+              {importSummary ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-center space-y-3">
+                  <div className="text-3xl">🎉</div>
+                  <h4 className="font-bold text-emerald-800 text-base">นำเข้าข้อมูลลูกบ้านสำเร็จ!</h4>
+                  <div className="flex justify-center gap-4 text-xs font-medium">
+                    <span className="bg-white px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700">
+                      เพิ่มใหม่: <strong>{importSummary.inserted}</strong> หลัง
+                    </span>
+                    <span className="bg-white px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700">
+                      อัปเดต: <strong>{importSummary.updated}</strong> หลัง
+                    </span>
+                    <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600">
+                      ข้าม: <strong>{importSummary.skipped}</strong> หลัง
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Step 1: Download Template & Upload File */}
+                  <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                    <div className="text-xs text-slate-600 space-y-1">
+                      <p className="font-semibold text-slate-800">1. เตรียมไฟล์รายชื่อลูกบ้าน</p>
+                      <p>ใช้ไฟล์ Excel เดิมของคุณ หรือดาวน์โหลดไฟล์ตัวอย่างไปกรอกได้เลย</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDownloadTemplate}
+                      className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                    >
+                      📄 ดาวน์โหลดไฟล์ตัวอย่าง (.xlsx)
+                    </button>
+                  </div>
+
+                  {/* Step 2: File Input */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      2. เลือกไฟล์ Excel หรือ CSV จากเครื่อง
+                    </label>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleImportFileChange}
+                      className="block w-full text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 border border-slate-200 rounded-lg p-1.5 cursor-pointer"
+                    />
+                    {importFileName && (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        ไฟล์ที่เลือก: <span className="font-medium text-slate-700">{importFileName}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Step 3: Duplicate handling */}
+                  {importRows.length > 0 && (
+                    <>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-blue-50/60 p-3 rounded-xl border border-blue-100">
+                        <span className="text-xs font-semibold text-slate-700">
+                          พบข้อมูลทั้งหมด <span className="text-primary">{importRows.length}</span> หลัง
+                          {" "}
+                          (ใหม่ {importRows.filter((r) => !r.isExisting).length} / ซ้ำ {importRows.filter((r) => r.isExisting).length})
+                        </span>
+                        <div className="flex items-center gap-3 text-xs">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="duplicateMode"
+                              checked={duplicateMode === "skip"}
+                              onChange={() => setDuplicateMode("skip")}
+                            />
+                            <span>ข้ามบ้านที่ซ้ำ</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="duplicateMode"
+                              checked={duplicateMode === "update"}
+                              onChange={() => setDuplicateMode("update")}
+                            />
+                            <span>อัปเดตบ้านที่ซ้ำ</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Preview Table */}
+                      <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 text-slate-600 sticky top-0 border-b border-slate-200">
+                            <tr>
+                              <th className="px-3 py-2">#</th>
+                              <th className="px-3 py-2">บ้านเลขที่</th>
+                              <th className="px-3 py-2">ชื่อเจ้าของบ้าน</th>
+                              <th className="px-3 py-2">เลขมิเตอร์น้ำ</th>
+                              <th className="px-3 py-2 text-right">สถานะ</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {importRows.slice(0, 50).map((row, idx) => (
+                              <tr key={`${row.houseNumber}-${idx}`} className="hover:bg-slate-50/50">
+                                <td className="px-3 py-1.5 text-slate-400">{idx + 1}</td>
+                                <td className="px-3 py-1.5 font-bold text-slate-800">{row.houseNumber}</td>
+                                <td className="px-3 py-1.5 text-slate-700">{row.ownerName || "-"}</td>
+                                <td className="px-3 py-1.5 font-mono text-slate-500">{row.waterMeterId || "-"}</td>
+                                <td className="px-3 py-1.5 text-right">
+                                  {row.isExisting ? (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                                      มีในระบบแล้ว
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                                      ใหม่
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {importRows.length > 50 && (
+                          <div className="text-center py-2 text-[11px] text-slate-400 bg-slate-50 border-t border-slate-100">
+                            แสดงตัวอย่าง 50 รายการแรก จากทั้งหมด {importRows.length} รายการ
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                className="px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                {importSummary ? "ปิดหน้าต่าง" : "ยกเลิก"}
+              </button>
+              {!importSummary && (
+                <button
+                  type="button"
+                  disabled={importing || importRows.length === 0}
+                  onClick={handleConfirmImport}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium cursor-pointer disabled:opacity-50"
+                >
+                  {importing
+                    ? "กำลังนำเข้าข้อมูล..."
+                    : `ยืนยันนำเข้า ${importRows.length} หลัง`}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
