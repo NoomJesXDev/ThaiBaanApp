@@ -105,7 +105,7 @@ export default function BillingManagement({
   // Fetch Billing Sets
   const fetchBillingSets = async () => {
     try {
-      const res = await fetch("/api/billing/sets");
+      const res = await fetch("/api/billing/sets", { cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
         setBillingSets(data.sets || []);
@@ -119,7 +119,7 @@ export default function BillingManagement({
     let active = true;
     (async () => {
       try {
-        const res = await fetch("/api/billing/sets");
+        const res = await fetch("/api/billing/sets", { cache: "no-store" });
         const data = await res.json();
         if (active && res.ok) {
           setBillingSets(data.sets || []);
@@ -137,7 +137,7 @@ export default function BillingManagement({
   const loadBillingPeriod = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/billing/period?month=${selectedMonth}&year=${selectedYear}`);
+      const res = await fetch(`/api/billing/period?month=${selectedMonth}&year=${selectedYear}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการโหลดรอบบิล");
 
@@ -258,7 +258,7 @@ export default function BillingManagement({
     let active = true;
     (async () => {
       try {
-        const res = await fetch(`/api/billing/period?month=${selectedMonth}&year=${selectedYear}`);
+        const res = await fetch(`/api/billing/period?month=${selectedMonth}&year=${selectedYear}`, { cache: "no-store" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการโหลดรอบบิล");
         if (!active) return;
@@ -408,12 +408,15 @@ export default function BillingManagement({
         }),
       });
 
+      const savedData = await res.json();
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "เกิดข้อผิดพลาด");
+        throw new Error(savedData.error || "เกิดข้อผิดพลาด");
       }
 
       await fetchBillingSets();
+      if (savedData?.data?.id) {
+        setSelectedSetId(savedData.data.id);
+      }
       setEditingSetId(null);
       setTempSetName("");
       setTempSelectedRateIds([]);
@@ -449,12 +452,15 @@ export default function BillingManagement({
     }
   };
 
-  // Apply Selected Billing Set to Period
-  const handleApplyBillingSet = async () => {
-    if (!selectedSetId || !billingPeriodId) return;
-    const targetSet = billingSets.find((s) => s.id === selectedSetId);
+  // Apply Selected Billing Set to Period (can pass explicit setId directly)
+  const handleApplyBillingSet = async (overrideSetId?: string) => {
+    const targetId = overrideSetId || selectedSetId;
+    if (!targetId || !billingPeriodId) return;
+    const targetSet = billingSets.find((s) => s.id === targetId);
     if (!targetSet) return;
 
+    setSelectedSetId(targetId);
+    setIsSetConfigModalOpen(false);
     setLoading(true);
     try {
       const res = await fetch("/api/billing/period", {
@@ -843,10 +849,35 @@ export default function BillingManagement({
             </select>
           </div>
 
-          <div className="col-span-2 flex gap-3">
+          <div className="col-span-2 flex flex-wrap gap-3">
+            {selectedItems.length > 0 && !periodClosed && billingSets.length > 0 && (
+              <div className="flex-1 min-w-[200px] flex gap-1.5">
+                <select
+                  value={selectedSetId}
+                  onChange={(e) => setSelectedSetId(e.target.value)}
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary font-medium text-slate-800 cursor-pointer"
+                >
+                  <option value="">-- เปลี่ยนชุดรายการเก็บเงิน --</option>
+                  {billingSets.map((set) => (
+                    <option key={set.id} value={set.id}>
+                      {set.name} ({set.items.length} รายการ)
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!selectedSetId || loading}
+                  onClick={() => handleApplyBillingSet()}
+                  className="px-3 py-2 bg-primary hover:bg-primary-light disabled:opacity-40 text-white text-xs font-bold rounded-xl cursor-pointer transition-all whitespace-nowrap"
+                >
+                  ใช้ชุดนี้
+                </button>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => {
+                setEditingSetId(null);
                 setTempSetName("");
                 setTempSelectedRateIds([]);
                 setIsSetConfigModalOpen(true);
@@ -910,7 +941,7 @@ export default function BillingManagement({
               <button
                 type="button"
                 disabled={!selectedSetId}
-                onClick={handleApplyBillingSet}
+                onClick={() => handleApplyBillingSet()}
                 className="w-full py-2.5 bg-primary hover:bg-primary-light disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
               >
                 🚀 เปิดรอบบิลและสร้างบิล
@@ -1209,6 +1240,15 @@ export default function BillingManagement({
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {!periodClosed && billingPeriodId && (
+                            <button
+                              type="button"
+                              onClick={() => handleApplyBillingSet(set.id)}
+                              className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg cursor-pointer"
+                            >
+                              ใช้ชุดนี้
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
