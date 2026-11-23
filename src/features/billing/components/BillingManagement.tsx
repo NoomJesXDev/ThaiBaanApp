@@ -25,6 +25,14 @@ interface BillingSet {
   is_active: boolean;
 }
 
+interface BillingPeriodSummary {
+  id: string;
+  round_number?: number;
+  round_name?: string | null;
+  is_closed: boolean;
+  selected_items?: UtilityRate[];
+}
+
 interface BillingManagementProps {
   houses: House[];
   rates: UtilityRate[];
@@ -81,10 +89,17 @@ export default function BillingManagement({
   
   // Billing Period states
   const [billingPeriodId, setBillingPeriodId] = useState<string | null>(null);
+  const [monthPeriods, setMonthPeriods] = useState<BillingPeriodSummary[]>([]);
   const [bills, setBills] = useState<BillState[]>([]);
   const [selectedItems, setSelectedItems] = useState<UtilityRate[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [periodClosed, setPeriodClosed] = useState(false);
+
+  // Create New Round Modal states
+  const [isNewRoundModalOpen, setIsNewRoundModalOpen] = useState(false);
+  const [newRoundName, setNewRoundName] = useState("");
+  const [newRoundSetId, setNewRoundSetId] = useState("");
+  const [creatingRound, setCreatingRound] = useState(false);
   
   // Occasional / Special collection items (formerly Funeral Events)
   const [funeralOccurrences, setFuneralOccurrences] = useState<number>(0);
@@ -134,10 +149,14 @@ export default function BillingManagement({
   }, []);
 
   // Load or create billing period
-  const loadBillingPeriod = async () => {
+  const loadBillingPeriod = async (overridePeriodId?: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/billing/period?month=${selectedMonth}&year=${selectedYear}`, { cache: "no-store" });
+      const targetPeriodId = overridePeriodId ?? billingPeriodId;
+      const queryStr = targetPeriodId
+        ? `/api/billing/period?month=${selectedMonth}&year=${selectedYear}&periodId=${encodeURIComponent(targetPeriodId)}`
+        : `/api/billing/period?month=${selectedMonth}&year=${selectedYear}`;
+      const res = await fetch(queryStr, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการโหลดรอบบิล");
 
@@ -146,6 +165,7 @@ export default function BillingManagement({
       const prevReadingsMap = data.prevReadings || {};
 
       setBillingPeriodId(period.id);
+      setMonthPeriods(Array.isArray(data.periods) ? data.periods : [period]);
       setPeriodClosed(period.is_closed);
       setFuneralOccurrences(period.funeral_occurrences || 0);
       setFuneralEvents(period.funeral_events || []);
@@ -192,8 +212,9 @@ export default function BillingManagement({
               if (item.is_metered) {
                 amount = 0;
               } else if (item.utility_type === "funeral") {
-                const totalFuneral = (period.funeral_events || []).reduce((sum: number, ev: SpecialEventItem) => sum + (Number(ev.amount) || 0), 0);
-                amount = totalFuneral;
+                const events = period.funeral_events || [];
+                const totalFuneral = events.reduce((sum: number, ev: SpecialEventItem) => sum + (Number(ev.amount) || 0), 0);
+                amount = events.length > 0 ? totalFuneral : Number(item.flat_rate || 0);
               } else {
                 amount = Number(item.flat_rate || 0);
               }
@@ -268,6 +289,7 @@ export default function BillingManagement({
         const prevReadingsMap = data.prevReadings || {};
 
         setBillingPeriodId(period.id);
+        setMonthPeriods(Array.isArray(data.periods) ? data.periods : [period]);
         setPeriodClosed(period.is_closed);
         setFuneralOccurrences(period.funeral_occurrences || 0);
         setFuneralEvents(period.funeral_events || []);
@@ -316,11 +338,12 @@ export default function BillingManagement({
               } else if (item.is_metered) {
                 amount = 0;
               } else if (item.utility_type === "funeral") {
-                const totalFuneral = (period.funeral_events || []).reduce(
+                const events = period.funeral_events || [];
+                const totalFuneral = events.reduce(
                   (sum: number, ev: SpecialEventItem) => sum + (Number(ev.amount) || 0),
                   0
                 );
-                amount = totalFuneral;
+                amount = events.length > 0 ? totalFuneral : Number(item.flat_rate || 0);
               } else {
                 amount = Number(item.flat_rate || 0);
               }
@@ -509,11 +532,86 @@ export default function BillingManagement({
       }
 
       setPeriodClosed(true);
+      setMonthPeriods((prev) =>
+        prev.map((p) => (p.id === billingPeriodId ? { ...p, is_closed: true } : p))
+      );
       alert("ปิดรอบบิลเรียบร้อยแล้ว!");
     } catch (err: unknown) {
       alert("เกิดข้อผิดพลาด: " + (err instanceof Error ? err.message : undefined));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Reopen closed billing period
+  const handleReopenPeriod = async () => {
+    if (!billingPeriodId) return;
+    if (!confirm("ต้องการปลดล็อกรอบบิลนี้เพื่อกลับมาแก้ไขหรือเพิ่มบิลใช่หรือไม่?")) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/billing/period", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: billingPeriodId, isClosed: false }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "ไม่สามารถปลดล็อกรอบบิลได้");
+      }
+      setPeriodClosed(false);
+      setMonthPeriods((prev) =>
+        prev.map((p) => (p.id === billingPeriodId ? { ...p, is_closed: false } : p))
+      );
+    } catch (err: unknown) {
+      alert("เกิดข้อผิดพลาด: " + (err instanceof Error ? err.message : undefined));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Create a new billing round in the same month (e.g., multiple funeral collections)
+  const handleCreateNewRound = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRoundName.trim()) {
+      alert("กรุณาระบุชื่อรอบการเก็บเงิน (เช่น ศพบ้านแก่น นายสม)");
+      return;
+    }
+
+    setCreatingRound(true);
+    try {
+      const chosenSet = newRoundSetId
+        ? billingSets.find((s) => s.id === newRoundSetId)
+        : null;
+
+      const res = await fetch("/api/billing/period", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_round",
+          month: selectedMonth,
+          year: selectedYear,
+          roundName: newRoundName.trim(),
+          selectedItems: chosenSet ? chosenSet.items : [],
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "ไม่สามารถสร้างรอบเก็บเงินใหม่ได้");
+
+      setIsNewRoundModalOpen(false);
+      setNewRoundName("");
+      setNewRoundSetId("");
+
+      if (data.period?.id) {
+        await loadBillingPeriod(data.period.id);
+      } else {
+        await loadBillingPeriod();
+      }
+    } catch (err: unknown) {
+      alert("สร้างรอบใหม่ไม่สำเร็จ: " + (err instanceof Error ? err.message : undefined));
+    } finally {
+      setCreatingRound(false);
     }
   };
 
@@ -806,17 +904,68 @@ export default function BillingManagement({
       <div className="bg-white p-5 md:p-6 shadow-sm rounded-2xl border border-slate-100/85 space-y-5">
         <div className="flex justify-between items-center pb-3.5 border-b border-slate-100">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest font-display">ตัวเลือกการเรียกเก็บเงิน</span>
-          <div>
+          <div className="flex items-center gap-2">
             {periodClosed ? (
-              <span className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 border border-rose-100 text-[10px] font-bold px-3 py-1 rounded-full">
-                <span className="text-xs">🔒</span> ปิดรอบบิลแล้ว
-              </span>
+              <>
+                <span className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 border border-rose-100 text-[10px] font-bold px-3 py-1 rounded-full">
+                  <span className="text-xs">🔒</span> ปิดรอบบิลแล้ว
+                </span>
+                <button
+                  type="button"
+                  onClick={handleReopenPeriod}
+                  className="text-[10px] font-bold text-slate-600 hover:text-primary bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-full cursor-pointer transition-colors"
+                >
+                  🔓 ปลดล็อก
+                </button>
+              </>
             ) : (
               <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold px-3 py-1 rounded-full">
                 <span className="text-xs">🔓</span> เปิดให้บันทึกข้อมูล
               </span>
             )}
           </div>
+        </div>
+
+        {/* Multi-round Tabs within the selected month */}
+        <div className="flex flex-wrap items-center gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+          <span className="text-[11px] font-bold text-slate-500 px-1">รอบในเดือนนี้:</span>
+          {monthPeriods.map((p, idx) => {
+            const isActive = p.id === billingPeriodId;
+            const label = p.round_name
+              ? `รอบที่ ${p.round_number || idx + 1}: ${p.round_name}`
+              : `รอบที่ ${p.round_number || idx + 1}`;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  if (!isActive) {
+                    setSelectedSetId("");
+                    void loadBillingPeriod(p.id);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  isActive
+                    ? "bg-primary text-white shadow-xs"
+                    : "bg-white text-slate-600 border border-slate-200 hover:border-primary/40 hover:text-primary"
+                }`}
+              >
+                <span>{p.is_closed ? "🔒" : "🔓"}</span>
+                <span>{label}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => {
+              setNewRoundName("");
+              setNewRoundSetId(billingSets[0]?.id || "");
+              setIsNewRoundModalOpen(true);
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 cursor-pointer transition-all"
+          >
+            ➕ เพิ่มรอบเก็บเงินในเดือนนี้
+          </button>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
@@ -1536,6 +1685,81 @@ export default function BillingManagement({
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* 5. Create New Round Modal (Multiple collections in the same month) */}
+      {isNewRoundModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md w-full overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div>
+                <h3 className="font-bold text-sm text-slate-800 font-display">
+                  ➕ เพิ่มรอบเก็บเงินใหม่ ({MONTHS[selectedMonth - 1]} {selectedYear + 543})
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  เหมาะสำหรับเก็บเงินค่าฌาปนกิจหรือรายการพิเศษเพิ่มเติมในเดือนเดียวกัน
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewRoundModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewRound} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  ชื่อรอบการเก็บเงิน <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newRoundName}
+                  onChange={(e) => setNewRoundName(e.target.value)}
+                  placeholder="เช่น ศพบ้านแก่น นายสม, งานศพนายมี, ค่าซ่อมประปา"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-slate-50 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  เลือกชุดรายการเก็บเงินสำหรับรอบนี้
+                </label>
+                <select
+                  value={newRoundSetId}
+                  onChange={(e) => setNewRoundSetId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary font-medium text-slate-800 cursor-pointer"
+                >
+                  <option value="">-- เลือกภายหลัง --</option>
+                  {billingSets.map((set) => (
+                    <option key={set.id} value={set.id}>
+                      {set.name} ({set.items.length} รายการ)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-3 flex gap-3 justify-end border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsNewRoundModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingRound}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  {creatingRound ? "กำลังสร้างรอบใหม่..." : "สร้างรอบเก็บเงินใหม่"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

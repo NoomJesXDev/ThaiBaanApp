@@ -911,29 +911,56 @@ export async function executeDemoQuery<T extends QueryResultRow = any>(
     return makeResult(rows);
   }
 
-  if (sqlLower.includes("from billing_periods where community_id = $1 and period_month = $2 and period_year = $3")) {
+  if (sqlLower.includes("max(coalesce(round_number, 1))") && sqlLower.includes("from billing_periods")) {
     const [commId, month, year] = params;
-    const rows = db.billing_periods.filter(
+    const matched = db.billing_periods.filter(
       (bp) =>
         bp.community_id === commId &&
         Number(bp.period_month) === Number(month) &&
         Number(bp.period_year) === Number(year)
     );
+    const maxRound = matched.reduce((m, bp) => Math.max(m, Number(bp.round_number || 1)), 0);
+    return makeResult([{ max_round: maxRound }]);
+  }
+
+  if (sqlLower.includes("from billing_periods where community_id = $1 and period_month = $2 and period_year = $3")) {
+    const [commId, month, year] = params;
+    const rows = db.billing_periods
+      .filter(
+        (bp) =>
+          bp.community_id === commId &&
+          Number(bp.period_month) === Number(month) &&
+          Number(bp.period_year) === Number(year)
+      )
+      .sort((a, b) => Number(a.round_number || 1) - Number(b.round_number || 1));
     return makeResult(rows);
   }
 
   if (sqlLower.startsWith("insert into billing_periods")) {
-    const [commId, month, year, createdBy] = params;
+    const hasRoundName = sqlLower.includes("round_name");
+    const commId = params[0];
+    const month = params[1];
+    const year = params[2];
+    const roundNumber = hasRoundName ? Number(params[3] || 1) : 1;
+    const roundName = hasRoundName ? params[4] || null : null;
+    const selectedItems = hasRoundName
+      ? typeof params[5] === "string"
+        ? JSON.parse(params[5])
+        : params[5] || []
+      : [];
+    const createdBy = hasRoundName ? params[6] : params[3];
     const newPeriod = {
       id: crypto.randomUUID(),
       community_id: commId,
       period_month: Number(month),
       period_year: Number(year),
+      round_number: roundNumber,
+      round_name: roundName,
       is_closed: false,
       created_by: createdBy,
       funeral_occurrences: 0,
       funeral_events: [],
-      selected_items: [],
+      selected_items: selectedItems,
       created_at: now,
     };
     db.billing_periods.push(newPeriod);

@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
     // 1. Query the bill with period, house, and community LINE credentials
     const billResult = await query(
-      `SELECT b.*, bp.period_month, bp.period_year, 
+      `SELECT b.*, bp.period_month, bp.period_year, bp.round_name,
               h.house_number, h.owner_name, h.id as house_id, h.community_id,
               c.name as community_name, c.line_channel_access_token, c.line_liff_id
        FROM bills b
@@ -63,7 +63,8 @@ export async function POST(req: Request) {
       "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
       "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
     ];
-    const monthStr = `${monthNames[bill.period_month - 1]} ${bill.period_year + 543}`;
+    const baseMonthStr = `${monthNames[bill.period_month - 1]} ${bill.period_year + 543}`;
+    const monthStr = bill.round_name ? `${baseMonthStr} (${bill.round_name})` : baseMonthStr;
 
     // LIFF redirect URL (prefer community's configured LIFF ID, fallback to env/app URL)
     const liffId = bill.line_liff_id || process.env.NEXT_PUBLIC_LIFF_ID;
