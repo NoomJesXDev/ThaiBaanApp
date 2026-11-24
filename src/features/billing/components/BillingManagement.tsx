@@ -1045,7 +1045,7 @@ export default function BillingManagement({
                 }}
                 className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold py-2.5 px-4 rounded-xl cursor-pointer transition-all"
               >
-                📋 จัดการสนับสนุนพิเศษ ({funeralOccurrences} รายการ)
+                🕯️ รายชื่อศพ / รายการพิเศษ ({funeralOccurrences} รายการ)
               </button>
             )}
           </div>
@@ -1101,6 +1101,55 @@ export default function BillingManagement({
       ) : (
         /* Main Bills List and closing control panel */
         <div className="space-y-6">
+          {/* Funeral / Special Events Summary Bar */}
+          {selectedItems.some((it) => it.utility_type === "funeral") && (
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+                  <span>🕯️ รายการฌาปนกิจ / เงินพิเศษในรอบนี้</span>
+                  <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full">
+                    {funeralEvents.length} รายการ
+                  </span>
+                  {funeralEvents.length > 0 && (
+                    <span className="text-emerald-700 font-mono">
+                      (รวม {funeralEvents.reduce((s, ev) => s + (Number(ev.amount) || 0), 0).toFixed(2)} บ./หลัง)
+                    </span>
+                  )}
+                </div>
+                {funeralEvents.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {funeralEvents.map((ev, idx) => (
+                      <span
+                        key={ev.id || idx}
+                        className="inline-flex items-center gap-1 bg-white border border-emerald-200 text-emerald-800 text-[11px] font-medium px-2.5 py-1 rounded-lg"
+                      >
+                        <span>{ev.name || `รายการที่ ${idx + 1}`}</span>
+                        <strong className="font-mono text-emerald-700">
+                          {Number(ev.amount || 0).toFixed(0)} บ.
+                        </strong>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-emerald-800/80">
+                    ยังไม่ได้ระบุรายชื่อศพ — กดปุ่มด้านขวาเพื่อเพิ่มหลายศพในรอบเดียวกันและกำหนดยอดแต่ละศพแยกกันได้ (เช่น นาย ก. 20 บ., นาย ข. 50 บ.)
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={!billingPeriodId}
+                onClick={() => {
+                  setTempFuneralEvents([...funeralEvents]);
+                  setIsFuneralModalOpen(true);
+                }}
+                className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-xl cursor-pointer transition-all shadow-xs"
+              >
+                {periodClosed ? "👁️ ดูรายชื่อศพ" : "➕ เพิ่ม / แก้ไขรายชื่อศพ"}
+              </button>
+            </div>
+          )}
+
           {/* Closing and summary control panel */}
           <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200/60 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
             <div className="flex flex-wrap gap-4 text-xs font-semibold text-slate-500">

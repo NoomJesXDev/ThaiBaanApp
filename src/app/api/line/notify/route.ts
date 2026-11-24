@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
     // 1. Query the bill with period, house, and community LINE credentials
     const billResult = await query(
-      `SELECT b.*, bp.period_month, bp.period_year, bp.round_name,
+      `SELECT b.*, bp.period_month, bp.period_year, bp.round_name, bp.funeral_events,
               h.house_number, h.owner_name, h.id as house_id, h.community_id,
               c.name as community_name, c.line_channel_access_token, c.line_liff_id
        FROM bills b
@@ -73,10 +73,34 @@ export async function POST(req: Request) {
       ? `https://liff.line.me/${liffId}?billId=${bill.id}`
       : `${appUrl}/liff/bills?billId=${bill.id}`;
 
-    const formattedItems = billItems.map((i: Record<string, unknown>) => ({
-      name: String(i.name || ""),
-      amount: Number(i.amount),
-    }));
+    const funeralEvents: Array<{ type?: string; name?: string; amount?: number }> =
+      Array.isArray(bill.funeral_events) ? bill.funeral_events : [];
+
+    const formattedItems: Array<{ name: string; amount: number }> = [];
+    billItems.forEach((i: Record<string, unknown>) => {
+      if (i.utility_type === "funeral" && funeralEvents.length > 0) {
+        funeralEvents.forEach((ev) => {
+          const prefix =
+            ev.type === "maintenance"
+              ? "ค่าซ่อมประปา"
+              : ev.type === "common"
+              ? "ค่าส่วนกลาง"
+              : ev.type === "other"
+              ? "ค่าใช้จ่ายพิเศษ"
+              : "ฌาปนกิจ";
+          const label = ev.name ? `${prefix}: ${ev.name}` : prefix;
+          formattedItems.push({
+            name: label,
+            amount: Number(ev.amount || 0),
+          });
+        });
+      } else {
+        formattedItems.push({
+          name: String(i.name || ""),
+          amount: Number(i.amount),
+        });
+      }
+    });
 
     const notifyResults = await Promise.all(
       members.map(async (member: Record<string, unknown>) => {
